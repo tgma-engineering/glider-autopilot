@@ -1,3 +1,7 @@
+/*
+ * Connect SBUS line to IO25 and put 1kOhm between IO25 and IO26
+ */
+
 #include <Arduino.h>
 #include <SBUS2.h>
 #include <ESP32Servo.h>
