@@ -23,9 +23,18 @@ void Autopilot::setup() {
         }
     }
 
-    // Sbus
-    Serial.println("Setup SBUS ...");
+    // SBus
+    Serial.println("Setup SBus ...");
     sbus_.setup();
+
+    // Servos and motor
+    Serial.println("Setup Servos ...");
+    if (!servos_.setup()) {
+        while (true) {
+            Serial.println("Error: Servo Setup failed");
+            delay(1000);
+        }
+    }
 
     // Timing
     uint32_t curr_micros = micros();
@@ -53,42 +62,39 @@ void Autopilot::loop() {
 
     if (sbus_has_data) {
         if (state_ == kIdle) {
-            if (sbus_.arm_switch()) {
+            if (SBusController::is_armed(sbus_.arm_switch())) {
                 state_ = kArmFail;
-                Serial.println("Error: System must start disarmed");
+                Serial.println("Warning: System must start disarmed");
             } else {
                 state_ = kDisarmed;
             }
         }
         if (state_ == kArmFail) {
-            if (!sbus_.arm_switch()) {
+            if (!SBusController::is_armed(sbus_.arm_switch())) {
                 state_ = kDisarmed;
             }
         }
         if (state_ == kDisarmed) {
-            if (sbus_.arm_switch()) {
-                // TODO: Make function in ServoController that replace checks like that
-                if (sbus_.motor() > sbus_.kSBusMid) {  // Motor off
-                    state_ = kArmed;
-                } else {  // Motor on
+            if (SBusController::is_armed(sbus_.arm_switch())) {
+                if (ServoController::is_motor_on(sbus_.motor())) {
                     state_ = kArmFail;
-                    Serial.println("Error: Motor cannot be on when arming");
+                    Serial.println("Warning: Motor cannot be on when arming");
+                } else {
+                    state_ = kArmed;
                 }
             }
         }
         if (state_ == kArmed) {
-            if (!sbus_.arm_switch()) {
+            if (!SBusController::is_armed(sbus_.arm_switch())) {
                 state_ = kDisarmed;
             }
         }
     }
 
-    if (mode_ == kManual && sbus_has_data) {
-        // Set servos (but not motor) from SBus
-        if (state_ == kArmed) {
-            // Set motor from SBus
-        } else {
-            // Turn off motor if it is on
+    if (mode_ == kManual) {
+        if (sbus_has_data) {
+            bool set_motor = (state_ == kArmed);
+            servos_.set_from_sbus(sbus_, set_motor);
         }
-    }  // Auto mode is yet to be implemented
+    }  // Auto mode has yet to be implemented
 }

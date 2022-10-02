@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 #include "sbus_controller.h"
+#include "servo_controller.h"
 
 class Autopilot {
 public:
@@ -30,6 +31,7 @@ private:
     Mode mode_;
     uint32_t last_micros_;
     SBusController sbus_;
+    ServoController servos_;
 };
 
 #endif  // AUTOPILOT_H_
