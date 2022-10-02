@@ -1,11 +1,35 @@
 /*
- * Connect SBUS line to IO25 and put 1kOhm between IO25 and IO26
+ * Connect SBUS:
+ * SBUS - GPIO25
+ * and put 1kOhm between GPIO25 and GPIO26
+ * It uses UART1
+ * 
+ * Servo Pins:
+ * quer_r - GPIO27
+ * quer_l - GPIO14
+ * klappe_r - GPIO12
+ * klappe_l - GPIO13
+ * hoehe - GPIO15
+ * seite - GPIO2
+ * motor - GPIO4
+ *
+ * Default I2C lines for ESP32 are:
+ * SCL - GPIO22
+ * SDA - GPIO21
+ * Those can be changed to any other pins via TwoWire Object
+ * 
+ * Connect GPS (Subject to change):
+ * RX - GPIO35
+ * TX - GPIO34
+ * It uses UART2
  */
 
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 #include <SBUS2.h>
 #include <ESP32Servo.h>
+
+#define DEBUG 1
 
 #define WATCHDOG_TIMEOUT 1  // 1 second
 #define SBUS_MIN 0  // 12-Bit Signal
@@ -60,6 +84,7 @@ void loop()
         SBUS2_get_status(&dummy1, &dummy2, &failsave);
         sbus_fer = SBUS_get_FER();  // Frame Error Rate
 
+#if DEBUG
         for (uint8_t i = 0; i < 18; ++i) {
             Serial.print(sbus_channels[i]);
             Serial.print(" ");
@@ -68,8 +93,13 @@ void loop()
         Serial.print(" ");
         Serial.print(failsave);
         Serial.println();
-
-        test_servo.write(map(sbus_channels[0], SBUS_MIN, SBUS_MAX, SERVO_PULS_MIN, SERVO_PULS_MAX));
+#endif
+        
+        test_servo.write(constrain(map(SBUS_MAX - sbus_channels[0], SBUS_MIN, SBUS_MAX, SERVO_PULS_MIN, SERVO_PULS_MAX), 1040, 1850));  // Quer, TIME: Mid-1470,Max-1850,Min-1040
+        //test_servo.write(constrain(map(SBUS_MAX - sbus_channels[9], SBUS_MIN, SBUS_MAX, SERVO_PULS_MIN, SERVO_PULS_MAX), 1200, 2100));  // Klappen, TIME: Mid-2080,Max-2100,Min-1200
+        //test_servo.write(constrain(map(sbus_channels[1], SBUS_MIN, SBUS_MAX, SERVO_PULS_MIN, SERVO_PULS_MAX), 863, 2272));  // Hoehe, TIME: Mid-1499,Max-2272,Min-863
+        //test_servo.write(constrain(map(SBUS_MAX - sbus_channels[3], SBUS_MIN, SBUS_MAX, SERVO_PULS_MIN, SERVO_PULS_MAX), 862, 2080));  // Seite, TIME: Mid-1470,Max-2080,Min-862
+        //test_servo.write(map(SBUS_MAX - sbus_channels[8], SBUS_MIN, SBUS_MAX, SERVO_PULS_MIN, SERVO_PULS_MAX));  // Motor, SBUS: 300-Off;1600-On
 
         esp_task_wdt_reset();  // Watchdog makes sure that SBUS is checked regularly
     }
