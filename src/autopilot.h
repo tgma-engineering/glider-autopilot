@@ -10,15 +10,15 @@ public:
     static const uint8_t kWatchdogTimeout = 1;  // In Seconds
 
     enum State {
-        kIdle,
-        kArmFail,
-        kDisarmed,
-        kArmed
+        kIdle,      // Wait for SBus
+        kArmFail,   // Arm failed somehow, disarm to continue
+        kDisarmed,  // Default flight-ready state
+        kArmed      // The only state in which motor is enabled
     };
 
     enum Mode {
-        kManual,
-        kAuto
+        kManual,  // Manual control
+        kAuto     // Autopilot mode
     };
 
     Autopilot();
