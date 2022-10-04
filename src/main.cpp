@@ -7,13 +7,13 @@
  * It uses UART1
  * 
  * Servo Pins:
- * aileron_r - GPIO27
- * aileron_l - GPIO14
- * flap_r - GPIO12
- * flap_l - GPIO13
- * elevator - GPIO15
- * rudder - GPIO2
- * motor - GPIO4
+ * aileron_l - GPIO27
+ * aileron_r - GPIO14
+ * motor - GPIO12
+ * elevator - GPIO13
+ * rudder - GPIO15
+ * flap_l - GPIO2
+ * flap_r - GPIO4
  *
  * Default I2C lines for ESP32 are:
  * SCL - GPIO22

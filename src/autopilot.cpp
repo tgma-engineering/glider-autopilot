@@ -29,7 +29,7 @@ void Autopilot::setup() {
 
     // Servos and motor
     Serial.println("Setup Servos ...");
-    if (!servos_.setup()) {
+    if (servos_.setup()) {
         while (true) {
             Serial.println("Error: Servo Setup failed");
             delay(1000);
@@ -90,6 +90,8 @@ void Autopilot::loop() {
             }
         }
     }
+
+    servos_.loop(dt);
 
     if (mode_ == kManual) {
         if (sbus_has_data) {
