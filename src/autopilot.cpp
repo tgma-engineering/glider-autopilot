@@ -95,7 +95,7 @@ void Autopilot::loop() {
 
     if (mode_ == kManual) {
         if (sbus_has_data) {
-            bool set_motor = (state_ == kArmed);
+            bool set_motor = (state_ == kArmed && !sbus_.failsave());  // False will turn motor off
             servos_.set_from_sbus(sbus_, set_motor);
         }
     }  // Auto mode has yet to be implemented
