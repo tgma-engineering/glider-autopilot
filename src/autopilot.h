@@ -5,6 +5,7 @@
 #include <esp_task_wdt.h>
 #include "sbus_controller.h"
 #include "servo_controller.h"
+#include "flight_controller.h"
 
 class Autopilot {
 public:
@@ -18,8 +19,9 @@ public:
     };
 
     enum Mode {
-        kManual,  // Manual control
-        kAuto     // Autopilot mode
+        kManual = 0,  // Manual control
+        kAuto1 = 1,   // Autopilot mode 1
+        kAuto2 = 2    // Autopilot mode 2
     };
 
     Autopilot();
@@ -32,6 +34,7 @@ private:
     uint32_t last_micros_;
     SBusController sbus_;
     ServoController servos_;
+    FlightController fc_;
 };
 
 #endif  // AUTOPILOT_H_

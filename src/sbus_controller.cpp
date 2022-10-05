@@ -40,3 +40,18 @@ int8_t SBusController::loop(uint32_t dt) {
     }
     return -1;
 }
+
+void SBusController::get_controls(float& roll_out, float& pitch_out, float& yaw_out, float& flap_out, float& motor_out) {
+    // Order of max and min is dependent on if the SBus Signal is inverted or not
+    int16_t roll_int = map(aileron(), kSBusEffMax, kSBusEffMin, -1000, 1000);
+    int16_t pitch_int = map(elevator(), kSBusEffMin, kSBusEffMax, -1000, 1000);
+    int16_t yaw_int = map(rudder(), kSBusEffMax, kSBusEffMin, -1000, 1000);
+    int16_t flap_int = map(flap(), kSBusEffMin, kSBusEffMax, 0, 1000);
+    int16_t motor_int = map(motor(), kSBusEffMax, kSBusEffMin, 0, 1000);
+    
+    roll_out = static_cast<float>(roll_int) / 1000.f;
+    pitch_out = static_cast<float>(roll_int) / 1000.f;
+    yaw_out = static_cast<float>(roll_int) / 1000.f;
+    flap_out = static_cast<float>(roll_int) / 1000.f;
+    motor_out = static_cast<float>(roll_int) / 1000.f;
+}

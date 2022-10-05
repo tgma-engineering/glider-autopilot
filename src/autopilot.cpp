@@ -36,6 +36,10 @@ void Autopilot::setup() {
         }
     }
 
+    // Flight Controller
+    Serial.println("Setup Flight Controller ...");
+    fc_.setup();
+
     // Timing
     uint32_t curr_micros = micros();
     Serial.print("Setup Time: ");
@@ -61,6 +65,8 @@ void Autopilot::loop() {
         esp_task_wdt_reset();  // WDT makes sure that SBus is checked
 
     if (sbus_has_data) {
+        mode_ = static_cast<Mode>(SBusController::manual_switch_state(sbus_.manual_switch()));
+
         if (state_ == kIdle) {
             if (SBusController::is_armed(sbus_.arm_switch())) {
                 state_ = kArmFail;
@@ -79,6 +85,9 @@ void Autopilot::loop() {
                 if (ServoController::is_motor_on(sbus_.motor())) {
                     state_ = kArmFail;
                     Serial.println("Warning: Motor cannot be on when arming");
+                } else if (mode_ != kManual) {
+                    state_ = kArmFail;
+                    Serial.println("Warning: Flying must start in manual mode");
                 } else {
                     state_ = kArmed;
                 }
@@ -92,11 +101,27 @@ void Autopilot::loop() {
     }
 
     servos_.loop(dt);
+    fc_.loop(dt);  // Loop only keeps track of attitude, no controls
 
+    bool set_motor = (state_ == kArmed && !sbus_.failsave());  // False will turn motor off
     if (mode_ == kManual) {
+        fc_.set_inactive();
+
         if (sbus_has_data) {
-            bool set_motor = (state_ == kArmed && !sbus_.failsave());  // False will turn motor off
             servos_.set_from_sbus(sbus_, set_motor);
         }
-    }  // Auto mode has yet to be implemented
+    } else {  // There is only one auto mode yet
+        fc_.set_active();
+
+        if (sbus_has_data) {
+            float roll, pitch, yaw, flap, motor;
+            sbus_.get_controls(roll, pitch, yaw, flap, motor);
+            fc_.set_input(roll, pitch, yaw, flap, motor);
+        }
+        float roll, pitch, yaw, flap, motor;
+        fc_.controls(roll, pitch, yaw, flap, motor, dt);
+        if (!set_motor)
+            motor = 0.f;
+        servos_.set(roll, pitch, yaw, flap, motor);
+    }
 }

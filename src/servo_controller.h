@@ -61,6 +61,7 @@ public:
     static const float kFlapAileronLCross;
     static const float kFlapAileronRCross;
 
+    static long double_map(long a, long a_min, long a_mid, long a_max, long b_min, long b_mid, long b_max);
     static uint16_t sbus_to_time(uint16_t sbus_channel, uint16_t pulse_min, uint16_t pulse_mid, uint16_t pulse_max, bool invert = false);
     static bool is_motor_on(uint16_t sbus_motor);
 
@@ -70,6 +71,7 @@ public:
     bool is_ready_reset();
 
     void set_from_sbus(const SBusController& sbus, bool write_motor = true);
+    void set(float aileron, float elevator, float rudder, float flap, float motor = 0.f);
 
 private:
     Servo aileron_l_;
