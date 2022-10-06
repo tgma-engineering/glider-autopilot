@@ -38,7 +38,12 @@ void Autopilot::setup() {
 
     // Flight Controller
     Serial.println("Setup Flight Controller ...");
-    fc_.setup();
+    if (fc_.setup()) {
+        while (true) {
+            Serial.println("Error: Flight Controller Setup failed");
+            delay(1000);
+        }
+    }
 
     // Timing
     uint32_t curr_micros = micros();
@@ -58,6 +63,10 @@ void Autopilot::loop() {
         dt = 0xFFFFFFFFul - last_micros_ + curr_micros;
     }
     last_micros_ = curr_micros;
+
+#if DEBUG
+    esp_task_wdt_reset();
+#endif
 
     // SBus
     bool sbus_has_data = !sbus_.loop(dt);

@@ -7,6 +7,8 @@
 #include "servo_controller.h"
 #include "flight_controller.h"
 
+#define DEBUG 1
+
 class Autopilot {
 public:
     static const uint8_t kWatchdogTimeout = 1;  // In Seconds

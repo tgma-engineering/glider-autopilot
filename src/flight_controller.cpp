@@ -10,18 +10,22 @@ FlightController::FlightController() {
 }
 
 int8_t FlightController::setup() {
+    if (imu_.setup()) {
+        Serial.println("Error: IMU Setup failed");
+        return -1;
+    }
     return 0;
 }
 
 int8_t FlightController::loop(uint32_t dt) {
-    // Keep Track of attitude
+    imu_.loop(dt);  // Keep Track of attitude
     return 0;
 }
 
 void FlightController::set_active() {
     if (!is_active_) {
         is_active_ = true;
-        // Set current attitude as target attitude
+        target_attitude_ = imu_.attitude();  // Set current attitude as target
     }
 }
 

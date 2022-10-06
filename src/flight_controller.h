@@ -3,6 +3,10 @@
 
 #include <Arduino.h>
 #include "controller.h"
+#include "imu_controller.h"
+#include <imumaths.h>
+
+using namespace imu;
 
 class FlightController : public Controller {
 public:
@@ -21,6 +25,9 @@ private:
     float input_yaw_;
     float input_flap_;
     float input_motor_;
+
+    ImuController imu_;
+    Quaternion target_attitude_;
 };
 
 #endif // FLIGHT_CONTROLLER_H_

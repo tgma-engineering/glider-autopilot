@@ -36,7 +36,7 @@ bool ServoController::is_motor_on(uint16_t sbus_motor) {
 }
 
 ServoController::ServoController() {
-    ready_timer = 0;
+    ready_timer = kReadyTime;
 }
 
 int8_t ServoController::setup() {
@@ -85,7 +85,7 @@ bool ServoController::is_ready_reset() {
     if (ready_timer < kReadyTime) {
         return false;
     } else {
-        ready_timer = 0;
+        ready_timer -= kReadyTime;
         return true;
     }
 }
