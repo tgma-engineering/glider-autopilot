@@ -12,17 +12,6 @@ void Autopilot::setup() {
     // Setup
     Serial.begin(115200);
 
-    // Watchdog checks for infinite loops and resets MCU if it finds one
-    Serial.println("Setup Watchdog Timer ...");
-    esp_err_t esp_err_init = esp_task_wdt_init(kWatchdogTimeout, true);
-    esp_err_t esp_err_add = esp_task_wdt_add(NULL);
-    if (esp_err_init != ESP_OK || esp_err_add != ESP_OK) {
-        while (true) {
-            Serial.println("Error: Watchdog Timer Setup failed");
-            delay(1000);
-        }
-    }
-
     // SBus
     Serial.println("Setup SBus ...");
     sbus_.setup();
@@ -41,6 +30,19 @@ void Autopilot::setup() {
     if (fc_.setup()) {
         while (true) {
             Serial.println("Error: Flight Controller Setup failed");
+            delay(1000);
+        }
+    }
+
+    delay(1000);
+
+    // Watchdog checks for infinite loops and resets MCU if it finds one
+    Serial.println("Setup Watchdog Timer ...");
+    esp_err_t esp_err_init = esp_task_wdt_init(kWatchdogTimeout, true);
+    esp_err_t esp_err_add = esp_task_wdt_add(NULL);
+    if (esp_err_init != ESP_OK || esp_err_add != ESP_OK) {
+        while (true) {
+            Serial.println("Error: Watchdog Timer Setup failed");
             delay(1000);
         }
     }
@@ -64,7 +66,7 @@ void Autopilot::loop() {
     }
     last_micros_ = curr_micros;
 
-#if DEBUG
+#if WATCHDOG_OFF
     esp_task_wdt_reset();
 #endif
 

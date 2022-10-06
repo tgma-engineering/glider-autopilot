@@ -14,11 +14,17 @@ int8_t FlightController::setup() {
         Serial.println("Error: IMU Setup failed");
         return -1;
     }
+    if (gps_.setup()) {
+        Serial.println("Error: GPS Setup failed");
+        return -1;
+    }
     return 0;
 }
 
 int8_t FlightController::loop(uint32_t dt) {
-    imu_.loop(dt);  // Keep Track of attitude
+    // Keep track of attitude and position
+    imu_.loop(dt);
+    gps_.loop(dt);
     return 0;
 }
 

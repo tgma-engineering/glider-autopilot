@@ -2,9 +2,10 @@
 #define FLIGHT_CONTROLLER_H_
 
 #include <Arduino.h>
+#include <imumaths.h>
 #include "controller.h"
 #include "imu_controller.h"
-#include <imumaths.h>
+#include "gps_controller.h"
 
 using namespace imu;
 
@@ -28,6 +29,8 @@ private:
 
     ImuController imu_;
     Quaternion target_attitude_;
+
+    GpsController gps_;
 };
 
 #endif // FLIGHT_CONTROLLER_H_

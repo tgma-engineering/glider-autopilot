@@ -8,6 +8,8 @@
 
 using namespace imu;
 
+// TODO: Read out additional data
+
 class ImuController : public Controller {
 public:
     static const uint8_t kId = 55;
@@ -18,6 +20,7 @@ public:
     virtual int8_t setup();
     virtual int8_t loop(uint32_t dt);
     Quaternion attitude() const { return attitude_; };
+    
 private:
     uint32_t sleep_time_;
     Adafruit_BNO055 bno_;
