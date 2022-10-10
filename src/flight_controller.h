@@ -2,12 +2,12 @@
 #define FLIGHT_CONTROLLER_H_
 
 #include <Arduino.h>
-#include <imumaths.h>
+#include <ArduinoEigen.h>
 #include "controller.h"
 #include "imu_controller.h"
 #include "gps_controller.h"
 
-using namespace imu;
+using namespace Eigen;
 
 class FlightController : public Controller {
 public:
@@ -28,7 +28,7 @@ private:
     float input_motor_;
 
     ImuController imu_;
-    Quaternion target_attitude_;
+    Quaterniond target_attitude_;
 
     GpsController gps_;
 };

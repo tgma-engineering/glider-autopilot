@@ -13,10 +13,14 @@ int8_t ImuController::setup() {
 int8_t ImuController::loop(uint32_t dt) {
     if (sleep_time_ >= kSampleDelay) {
         // Read data from sensor
-        attitude_ = bno_.getQuat();
-        acceleration_ = bno_.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
-        ang_velocity_ = bno_.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-        gravity_ = bno_.getVector(Adafruit_BNO055::VECTOR_GRAVITY);
+        imu::Quaternion attitude = bno_.getQuat();
+        attitude_ = Quaterniond(attitude.w(), attitude.x(), attitude.y(), attitude.z());
+        imu::Vector<3> acceleration = bno_.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
+        acceleration_ = Vector3d(acceleration(0), acceleration(1), acceleration(2));
+        imu::Vector<3> ang_velocity = bno_.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+        ang_velocity_ = Vector3d(ang_velocity(0), ang_velocity(1), ang_velocity(2));
+        imu::Vector<3> gravity = bno_.getVector(Adafruit_BNO055::VECTOR_GRAVITY);
+        gravity_ = Vector3d(gravity(0), gravity(1), gravity(2));
 
         sleep_time_ -= kSampleDelay;
     }

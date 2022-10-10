@@ -2,13 +2,11 @@
 #define GPS_CONTROLLER_H_
 
 #include <Arduino.h>
-#include <imumaths.h>
+#include <ArduinoEigen.h>
 #include "controller.h"
 #include "TinyGPS++.h"
 
-using namespace imu;
-
-// TODO: Read and safe data
+using namespace Eigen;
 
 class GpsController : public Controller {
 public:
@@ -32,9 +30,9 @@ public:
     // Takes Vector (latitude (deg), longitude (deg), altitude (m)) and
     // returns cartesian coordinates (m) (x-east, y-north, z-zenith)
     // relative to reference coordinates
-    Vector<3> sph_to_cart(Vector<3> sph);
+    Vector3d sph_to_cart(Vector3d sph);
     // The inverse of sph_to_cart()
-    Vector<3> cart_to_sph(Vector<3> cart);
+    Vector3d cart_to_sph(Vector3d cart);
     
 private:
     TinyGPSPlus gps_;

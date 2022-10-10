@@ -40,10 +40,10 @@ int8_t GpsController::loop(uint32_t dt) {
     return 0;
 }
 
-Vector<3> GpsController::sph_to_cart(Vector<3> sph) {
+Vector3d GpsController::sph_to_cart(Vector3d sph) {
     if (!is_ref_) {
         Serial.println("Warning: No Reference point was set yet");
-        return Vector<3>(0., 0., 0.);
+        return Vector3d(0., 0., 0.);
     }
 
     double latitude = sph(1);
@@ -62,13 +62,13 @@ Vector<3> GpsController::sph_to_cart(Vector<3> sph) {
     double y = (latitude - ref_latitude_) * m_per_deg;
     double x = (longitude - ref_longitude_) * cos(ref_latitude_) * m_per_deg;
 
-    return Vector<3>(x, y, z);
+    return Vector3d(x, y, z);
 }
 
-Vector<3> GpsController::cart_to_sph(Vector<3> cart) {
+Vector3d GpsController::cart_to_sph(Vector3d cart) {
     if (!is_ref_) {
         Serial.println("Warning: No Reference point was set yet");
-        return Vector<3>(0., 0., 0.);
+        return Vector3d(0., 0., 0.);
     }
 
     double x = cart(0);
@@ -87,5 +87,5 @@ Vector<3> GpsController::cart_to_sph(Vector<3> cart) {
         longitude += 360.;
     }
 
-    return Vector<3>(latitude, longitude, altitude);
+    return Vector3d(latitude, longitude, altitude);
 }
