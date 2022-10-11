@@ -30,9 +30,9 @@ public:
     // Takes Vector (latitude (deg), longitude (deg), altitude (m)) and
     // returns cartesian coordinates (m) (x-east, y-north, z-zenith)
     // relative to reference coordinates
-    Vector3d sph_to_cart(Vector3d sph);
+    Vector3d sph_to_cart(const Vector3d& sph);
     // The inverse of sph_to_cart()
-    Vector3d cart_to_sph(Vector3d cart);
+    Vector3d cart_to_sph(const Vector3d& cart);
     
 private:
     TinyGPSPlus gps_;

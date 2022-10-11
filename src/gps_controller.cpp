@@ -40,7 +40,7 @@ int8_t GpsController::loop(uint32_t dt) {
     return 0;
 }
 
-Vector3d GpsController::sph_to_cart(Vector3d sph) {
+Vector3d GpsController::sph_to_cart(const Vector3d& sph) {
     if (!is_ref_) {
         Serial.println("Warning: No Reference point was set yet");
         return Vector3d(0., 0., 0.);
@@ -65,7 +65,7 @@ Vector3d GpsController::sph_to_cart(Vector3d sph) {
     return Vector3d(x, y, z);
 }
 
-Vector3d GpsController::cart_to_sph(Vector3d cart) {
+Vector3d GpsController::cart_to_sph(const Vector3d& cart) {
     if (!is_ref_) {
         Serial.println("Warning: No Reference point was set yet");
         return Vector3d(0., 0., 0.);
