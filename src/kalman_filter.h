@@ -1,13 +1,14 @@
 #ifndef KALMAN_FILTER_H_
 #define KALMAN_FILTER_H_
 
-#include <Arduino.h>
+#include <functional>
 #include <ArduinoEigen.h>
 #include "ode.h"
 
 using namespace std;
 using namespace Eigen;
 
+// Extended Kalman Filter implementation using Eigen for Linear Algebra
 class KalmanFilter {
 public:
     // Struct to save state vector and error covariance of Kalman Kilter in one object.
@@ -35,10 +36,10 @@ public:
     };
 
     KalmanFilter(function<VectorXd(const VectorXd&, const VectorXd&)> system_model,
-                 function<VectorXd(const VectorXd&)> measure_model,
-                 function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian,
-                 function<MatrixXd(const VectorXd&)> measure_jacobian,
-                 const MatrixXd& noise_cov, const MatrixXd& measure_cov);
+        function<VectorXd(const VectorXd&)> measure_model,
+        function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian,
+        function<MatrixXd(const VectorXd&)> measure_jacobian,
+        const MatrixXd& noise_cov, const MatrixXd& measure_cov);
     void setup(const VectorXd& init_state, const MatrixXd& init_err_cov);
     void propagate(const VectorXd& input, double dt);
     void update(const VectorXd& measurement);
@@ -51,9 +52,9 @@ private:
     MatrixXd measure_cov_;  // Measurement Covariance
 
     function<VectorXd(const VectorXd&, const VectorXd&)> system_model_;     // x_dot = f(x, u)
-    function<VectorXd(const VectorXd&)> measure_model_;              // z = h(x)
+    function<VectorXd(const VectorXd&)> measure_model_;                     // z = h(x)
     function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian_;  // df/dx
-    function<MatrixXd(const VectorXd&)> measure_jacobian_;           // dh/dx
+    function<MatrixXd(const VectorXd&)> measure_jacobian_;                  // dh/dx
 };
 
 #endif  // KALMAN_FILTER_H_

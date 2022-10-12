@@ -12,11 +12,11 @@ KalmanFilter::State operator*(double d, const KalmanFilter::State& state) {
 }
 
 KalmanFilter::State operator/(const KalmanFilter::State& state, double d) {
-    return state * (1./d);
+    return state * (1. / d);
 }
 
 KalmanFilter::State operator/(double d, const KalmanFilter::State& state) {
-    return state * (1./d);
+    return state * (1. / d);
 }
 
 KalmanFilter::State operator+(const KalmanFilter::State& lhs, const KalmanFilter::State& rhs) {
@@ -34,10 +34,10 @@ KalmanFilter::State operator-(const KalmanFilter::State& lhs, const KalmanFilter
 }
 
 KalmanFilter::KalmanFilter(function<VectorXd(const VectorXd&, const VectorXd&)> system_model,
-                           function<VectorXd(const VectorXd&)> measure_model,
-                           function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian,
-                           function<MatrixXd(const VectorXd&)> measure_jacobian,
-                           const MatrixXd& noise_cov, const MatrixXd& measure_cov) {
+    function<VectorXd(const VectorXd&)> measure_model,
+    function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian,
+    function<MatrixXd(const VectorXd&)> measure_jacobian,
+    const MatrixXd& noise_cov, const MatrixXd& measure_cov) {
     system_model_ = system_model;
     measure_model_ = measure_model;
     system_jacobian_ = system_jacobian;
@@ -54,9 +54,10 @@ void KalmanFilter::setup(const VectorXd& init_state, const MatrixXd& init_err_co
 void KalmanFilter::propagate(const VectorXd& input, double dt) {
     auto state_dot = [this, input](const State& s) -> State {
         State s_dot;
-        s_dot.state_vector_ = system_model_(s.state_vector_, input);
-        s_dot.error_cov_ = system_jacobian_(s.state_vector_, input) * s.error_cov_ +
-                           s.error_cov_ * system_jacobian_(s.state_vector_, input).transpose() + noise_cov_;
+        VectorXd model = system_model_(s.state_vector_, input);
+        MatrixXd jacobian = system_jacobian_(s.state_vector_, input);
+        s_dot.state_vector_ = model;
+        s_dot.error_cov_ = jacobian * s.error_cov_ + s.error_cov_ * jacobian.transpose() + noise_cov_;
         return s_dot;
     };
 
