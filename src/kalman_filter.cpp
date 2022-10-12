@@ -52,23 +52,29 @@ void KalmanFilter::setup(const VectorXd& init_state, const MatrixXd& init_err_co
 }
 
 void KalmanFilter::propagate(const VectorXd& input, double dt) {
-    auto state_dot = [this, input](const VectorXd& x){ return system_model_(x, input); };
-    auto cov_dot = [this, input](const MatrixXd& P) {
-        return system_jacobian_(state_.state_vector_, input) * P + P * system_jacobian_(state_.state_vector_, input).transpose() + noise_cov_;
+    auto state_dot = [this, input](const State& s) -> State {
+        State s_dot;
+        s_dot.state_vector_ = system_model_(s.state_vector_, input);
+        s_dot.error_cov_ = system_jacobian_(s.state_vector_, input) * s.error_cov_ +
+                           s.error_cov_ * system_jacobian_(s.state_vector_, input).transpose() + noise_cov_;
+        return s_dot;
     };
 
-    // Warning! Integration for Error Covariance uses fixed state instead
-    // of updating it inside of the integration scheme. This may lead to
-    // numerical instabilities because of inconsistend integration.
-    // Could be solved by combining state and covariance into one object
-    // that is integrated as one.
-    VectorXd new_state = ode::rk4(state_.state_vector_, state_dot, dt);
-    MatrixXd new_cov = ode::rk4(state_.error_cov_, cov_dot, dt);
-
-    state_.state_vector_ = new_state;
-    state_.error_cov_ = new_cov;  // Might lose its symmetry over time. Restore if severe
+    State new_state = ode::rk4(state_, state_dot, dt);  // Error Covariance might lose its symmetry over time
+    state_ = new_state;
 }
 
 void KalmanFilter::update(const VectorXd& measurement) {
-    ;
+    auto n = state_.state_vector_.size();  // State size
+    auto I_n = MatrixXd::Identity(n, n);   // Square Identity of state size
+
+    MatrixXd meas_jac = measure_jacobian_(state_.state_vector_);
+    // Kalman Gain Matrix
+    MatrixXd K = state_.error_cov_ * meas_jac.transpose() * (meas_jac * state_.error_cov_ * meas_jac.transpose() + measure_cov_).inverse();
+
+    State state_update;
+    state_update.state_vector_ = state_.state_vector_ + K * (measurement - measure_model_(state_.state_vector_));
+    state_update.error_cov_ = (I_n - K * meas_jac) * state_.error_cov_;  // Simple update, bad numerical stability and symmetry properties known
+
+    state_ = state_update;
 }

@@ -39,7 +39,7 @@ Vector rk4(const Vector& x_0, Function f, double dt) {
     Vector k_2 = f(x_0 + 0.5 * dt * k_1);
     Vector k_3 = f(x_0 + 0.5 * dt * k_2);
     Vector k_4 = f(x_0 + dt * k_3);
-    Vector x_1 = x_0 + 1./6. * dt * (k_1 + 2.*k_2 + 2.*k_3 * k_4);
+    Vector x_1 = x_0 + 1./6. * dt * (k_1 + 2.*k_2 + 2.*k_3 + k_4);
     return x_1;
 }
 
