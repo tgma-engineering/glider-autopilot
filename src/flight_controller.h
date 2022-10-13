@@ -6,11 +6,19 @@
 #include "controller.h"
 #include "imu_controller.h"
 #include "gps_controller.h"
+#include "kalman_filter.h"
 
 using namespace Eigen;
 
 class FlightController : public Controller {
 public:
+    static const uint32_t kImuUpdateFreq = 100;  // In Hz
+    static constexpr double kAccNoiseStdDev = 1.;  // Discrete Accelerometer standard deviation
+    static constexpr double kAccBiasNoiseStdDev = 1.;
+    static constexpr double kGpsXStdDev = 1.;
+    static constexpr double kGpsYStdDev = 1.;
+    static constexpr double kGpsZStdDev = 3.;
+
     FlightController();
     virtual int8_t setup();
     virtual int8_t loop(uint32_t dt);
@@ -29,8 +37,8 @@ private:
 
     ImuController imu_;
     Quaterniond target_attitude_;
-
     GpsController gps_;
+    KalmanFilter position_kf_;
 };
 
 #endif // FLIGHT_CONTROLLER_H_
