@@ -2,6 +2,7 @@
 
 ImuController::ImuController() : bno_(kId, kAddress) {
     sleep_time_ = kSampleDelay;
+    new_data_ready_ = false;
 }
 
 int8_t ImuController::setup() {
@@ -23,7 +24,18 @@ int8_t ImuController::loop(uint32_t dt) {
         gravity_ = Vector3d(gravity(0), gravity(1), gravity(2));
 
         sleep_time_ -= kSampleDelay;
+        new_data_ready_ = true;
     }
     sleep_time_ += dt;
     return 0;
+}
+
+// Returns if IMU received new data since the last call of this method
+bool ImuController::new_data_ready() {
+    if (new_data_ready_) {
+        new_data_ready_ = false;
+        return true;
+    } else {
+        return false;
+    }
 }

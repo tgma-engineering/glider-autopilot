@@ -23,6 +23,7 @@ public:
     Vector3d acceleration() const { return acceleration_; }
     Vector3d ang_velocity() const { return ang_velocity_; }
     Vector3d gravity() const { return gravity_; }
+    bool new_data_ready();
     
 private:
     uint32_t sleep_time_;
@@ -31,6 +32,7 @@ private:
     Vector3d acceleration_;  // Acceleration without gravity in body frame
     Vector3d ang_velocity_;  // Angular Velocity in body frame
     Vector3d gravity_;       // Gravity in body frame
+    bool new_data_ready_;
 };
 
 #endif  // IMU_CONTROLLER_H_

@@ -7,6 +7,7 @@
 #include "imu_controller.h"
 #include "gps_controller.h"
 #include "kalman_filter.h"
+#include "sd_controller.h"
 
 using namespace Eigen;
 
@@ -15,9 +16,10 @@ public:
     static const uint32_t kImuUpdateFreq = 100;  // In Hz
     static constexpr double kAccNoiseStdDev = 1.;  // Discrete Accelerometer standard deviation
     static constexpr double kAccBiasNoiseStdDev = 1.;
-    static constexpr double kGpsXStdDev = 1.;
-    static constexpr double kGpsYStdDev = 1.;
-    static constexpr double kGpsZStdDev = 3.;
+    static constexpr double kGpsXStdDev = 2.5;
+    static constexpr double kGpsYStdDev = 2.5;
+    static constexpr double kGpsZStdDev = 7.5;
+    static const String kLogName;
 
     FlightController();
     virtual int8_t setup();
@@ -39,6 +41,10 @@ private:
     Quaterniond target_attitude_;
     GpsController gps_;
     KalmanFilter position_kf_;
+    bool is_kf_setup_;
+    uint32_t kf_last_propagate_;
+
+    SdController sd_;
 };
 
 #endif // FLIGHT_CONTROLLER_H_

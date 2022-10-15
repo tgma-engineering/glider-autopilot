@@ -1,5 +1,7 @@
 #include "flight_controller.h"
 
+const String FlightController::kLogName = "autopilot.log";
+
 FlightController::FlightController() : position_kf_(
     [](const VectorXd& x, const VectorXd& u) -> VectorXd {  // State Model: f(x, u)
         // x = x1, x2, x3, v1, v2, v3, a_b1, a_b2, a_b3
@@ -15,7 +17,8 @@ FlightController::FlightController() : position_kf_(
         return x_dot;
     },
     [](const VectorXd& x) -> VectorXd {  // Measurement Model: h(x)
-        return x.head(3);  // GPS will only measure position
+        VectorXd measurement = x.head(3);  // GPS will only measure position
+        return measurement;
     },
     [](const VectorXd& x, const VectorXd& u) -> MatrixXd {  // State Model Jacobian: df/dx
         Quaterniond rot(u(0), u(1), u(2), u(3));
@@ -53,15 +56,24 @@ FlightController::FlightController() : position_kf_(
     input_yaw_ = 0.f;
     input_flap_ = 0.f;
     input_motor_ = 0.f;
+    is_kf_setup_ = true;
+    kf_last_propagate_ = 0;
 }
 
 int8_t FlightController::setup() {
+    Serial.println("Setup IMU ...");
     if (imu_.setup()) {
         Serial.println("Error: IMU Setup failed");
         return -1;
     }
+    Serial.println("Setup GPS ...");
     if (gps_.setup()) {
         Serial.println("Error: GPS Setup failed");
+        return -1;
+    }
+    Serial.println("Setup SD ...");
+    if (sd_.setup(kLogName)) {
+        Serial.println("Error: SD Setup failed");
         return -1;
     }
     return 0;
@@ -71,6 +83,40 @@ int8_t FlightController::loop(uint32_t dt) {
     // Keep track of attitude and position
     imu_.loop(dt);
     gps_.loop(dt);
+
+    kf_last_propagate_ += dt;
+
+    if (gps_.is_valid() && !is_kf_setup_) {
+        // Setup Kalman Filter
+        VectorXd pos = gps_.position();
+        VectorXd x0(9);
+        x0 << pos, VectorXd::Zero(6);
+        MatrixXd P0 = VectorXd{{kGpsXStdDev*kGpsXStdDev, kGpsYStdDev*kGpsYStdDev, kGpsZStdDev*kGpsZStdDev,
+                                10., 10., 10.,
+                                10.*kAccBiasNoiseStdDev, 10.*kAccBiasNoiseStdDev, 10.*kAccBiasNoiseStdDev}}.asDiagonal();
+        position_kf_.setup(x0, P0);
+        is_kf_setup_ = true;
+        kf_last_propagate_ = 0;
+    }
+
+    if (imu_.new_data_ready()) {
+        Quaterniond attitude = imu_.attitude();
+        VectorXd acceleration = imu_.acceleration();
+        if (is_kf_setup_) {
+            VectorXd control(7);
+            control << attitude.w(), attitude.x(), attitude.y(), attitude.z(), acceleration;
+            double delta_second = static_cast<double>(kf_last_propagate_) / 1000000.;
+            position_kf_.propagate(control, delta_second);
+        }
+    }
+
+    if (gps_.new_data_ready()) {
+        VectorXd position = gps_.position();
+        if (is_kf_setup_) {
+            position_kf_.update(position);
+        }
+    }
+
     return 0;
 }
 
@@ -99,9 +145,9 @@ void FlightController::controls(float& roll, float& pitch, float& yaw, float& fl
     // Generate controls
 
     // Save controls in those
-    roll = 0.f;
-    pitch = 0.f;
-    yaw = 0.f;
-    flap = 0.f;
-    motor = 0.f;
+    roll = input_roll_;
+    pitch = input_pitch_;
+    yaw = input_yaw_;
+    flap = input_flap_;
+    motor = input_motor_;
 }

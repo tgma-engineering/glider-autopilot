@@ -10,10 +10,11 @@ using namespace Eigen;
 
 class GpsController : public Controller {
 public:
+    static const uint32_t kUpdateRate = 5;  // In Hz
     static const uint8_t kRxIo = 23;
     static const uint8_t kTxIo = 19;
     static const uint32_t kBaud = 9600;
-    static const double kSeaLevel;  // In meters
+    static constexpr double kSeaLevel = 6371001.0;  // In meters
 
     // Time after which validity expires with no new measurements
     static const uint32_t kMaxValidTime = 1500;  // In ms
@@ -26,13 +27,15 @@ public:
     double longitude() const { return longitude_; }
     double altitude() const { return altitude_; }
     bool is_valid() const { return is_valid_; }
+    Vector3d position() const;
+    bool new_data_ready();
 
     // Takes Vector (latitude (deg), longitude (deg), altitude (m)) and
     // returns cartesian coordinates (m) (x-east, y-north, z-zenith)
     // relative to reference coordinates
-    Vector3d sph_to_cart(const Vector3d& sph);
+    Vector3d sph_to_cart(const Vector3d& sph) const;
     // The inverse of sph_to_cart()
-    Vector3d cart_to_sph(const Vector3d& cart);
+    Vector3d cart_to_sph(const Vector3d& cart) const;
     
 private:
     TinyGPSPlus gps_;
@@ -49,6 +52,8 @@ private:
     double ref_latitude_;
     double ref_longitude_;
     double ref_altitude_;
+
+    bool new_data_ready_;
 };
 
 #endif  // GPS_CONTROLLER_H_

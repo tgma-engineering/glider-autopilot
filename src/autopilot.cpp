@@ -34,7 +34,7 @@ void Autopilot::setup() {
         }
     }
 
-    delay(1000);
+    //delay(1000);
 
     // Watchdog checks for infinite loops and resets MCU if it finds one
     Serial.println("Setup Watchdog Timer ...");
