@@ -14,7 +14,7 @@ public:
     static const uint8_t kSsGpio = 9;
 
     int8_t setup(const String& file_name);
-    int8_t append(const String& str);
+    int8_t append(const String& str) const;
 
 private:
     SPIClass spi_;

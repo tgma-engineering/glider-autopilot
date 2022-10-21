@@ -58,6 +58,7 @@ FlightController::FlightController() : position_kf_(
     input_motor_ = 0.f;
     is_kf_setup_ = true;
     kf_last_propagate_ = 0;
+    last_log_elapsed_ = 0;
 }
 
 int8_t FlightController::setup() {
@@ -117,6 +118,16 @@ int8_t FlightController::loop(uint32_t dt) {
         }
     }
 
+    // Logging stuff
+    if (last_log_elapsed_ <= kLogTime) {
+        last_log_elapsed_ += dt;
+    } else {
+        if (is_kf_setup_)  {  // Only log data if valid information is being computed
+            last_log_elapsed_ -= kLogTime;
+            log_state();
+        }
+    }
+
     return 0;
 }
 
@@ -150,4 +161,29 @@ void FlightController::controls(float& roll, float& pitch, float& yaw, float& fl
     yaw = input_yaw_;
     flap = input_flap_;
     motor = input_motor_;
+}
+
+void FlightController::log_state() const {
+    // Write log entry
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint32_t time;
+    VectorXd state = position_kf_.state_vector();
+    double x1 = state(0);
+    double x2 = state(1);
+    double x3 = state(2);
+    double v1 = state(3);
+    double v2 = state(4);
+    double v3 = state(5);
+    Quaterniond attitude = imu_.attitude();
+    double w = attitude.w();
+    double x = attitude.x();
+    double y = attitude.y();
+    double z = attitude.z();
+    gps_.time(year, month, day, time);
+    sd_.append(String(year) + "-" + String(month) + "-" + String(day) + "-" + String(time) + ":" +
+                String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +
+                String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +
+                String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + "\n");
 }

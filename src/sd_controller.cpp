@@ -18,7 +18,7 @@ int8_t SdController::setup(const String& file_name) {
     return 0;
 }
 
-int8_t SdController::append(const String& str) {
+int8_t SdController::append(const String& str) const {
     if (SD.usedBytes() >= SD.totalBytes()) {
         Serial.println("Warning: SD Card is full. No data will be logged");
         return -1;

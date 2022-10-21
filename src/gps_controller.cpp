@@ -29,6 +29,12 @@ int8_t GpsController::loop(uint32_t dt) {
                         is_ref_ = true;
                         is_valid_ = true;
                     }
+
+                    // Get time without checking its validity separately
+                    year_ = gps_.date.year() + 2000;
+                    month_ = gps_.date.month();
+                    day_ = gps_.date.day();
+                    time_ = gps_.time.value();
                 }
             }
         }
@@ -57,6 +63,13 @@ Vector3d GpsController::position() const {
 
     Vector3d sph{{latitude_, longitude_, altitude_}};
     return sph_to_cart(sph);
+}
+
+void GpsController::time(uint16_t& year, uint8_t& month, uint8_t& day, uint32_t& time) const {
+    year = year_;
+    month = month_;
+    day = day_;
+    time = time_;
 }
 
 bool GpsController::new_data_ready() {

@@ -26,6 +26,7 @@ public:
     double latitude() const { return latitude_; }
     double longitude() const { return longitude_; }
     double altitude() const { return altitude_; }
+    void time(uint16_t& year, uint8_t& month, uint8_t& day, uint32_t& time) const;
     bool is_valid() const { return is_valid_; }
     Vector3d position() const;
     bool new_data_ready();
@@ -52,6 +53,12 @@ private:
     double ref_latitude_;
     double ref_longitude_;
     double ref_altitude_;
+
+    // Time (UTC)
+    uint16_t year_;
+    uint8_t month_;
+    uint8_t day_;
+    uint32_t time_;  // HHMMSSCC
 
     bool new_data_ready_;
 };
