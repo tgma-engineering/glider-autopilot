@@ -31,7 +31,7 @@ int8_t GpsController::loop(uint32_t dt) {
                     }
 
                     // Get time without checking its validity separately
-                    year_ = gps_.date.year() + 2000;
+                    year_ = gps_.date.year();
                     month_ = gps_.date.month();
                     day_ = gps_.date.day();
                     time_ = gps_.time.value();

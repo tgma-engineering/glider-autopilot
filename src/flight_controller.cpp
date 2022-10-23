@@ -137,15 +137,6 @@ int8_t FlightController::loop(uint32_t dt) {
         if (is_kf_setup_)  {  // Only log data if valid information is being computed
             last_log_elapsed_ -= kLogTime;
             log_state();
-            
-            VectorXd pos = position_kf_.state_vector()(seq(0, 2));
-            Serial.print(pos(0));
-            Serial.print("\t");
-            Serial.print(pos(1));
-            Serial.print("\t");
-            Serial.print(pos(2));
-            Serial.print("\t");
-            Serial.println(gps_.satellites());
         }
     }
 
