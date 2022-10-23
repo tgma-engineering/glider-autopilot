@@ -10,14 +10,15 @@ using namespace Eigen;
 
 class GpsController : public Controller {
 public:
-    static const uint32_t kUpdateRate = 5;  // In Hz
+    static const uint32_t kUpdateRate = 1;  // In Hz (Datasheet says up to 5)
     static const uint8_t kRxIo = 23;
     static const uint8_t kTxIo = 19;
     static const uint32_t kBaud = 9600;
     static constexpr double kSeaLevel = 6371001.0;  // In meters
 
     // Time after which validity expires with no new measurements
-    static const uint32_t kMaxValidTime = 1500;  // In ms
+    static const uint32_t kMaxValidTime = 2500;  // In ms
+    static const uint8_t kMinSatellites = 8;
 
     GpsController();
     virtual int8_t setup();

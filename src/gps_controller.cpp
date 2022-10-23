@@ -12,17 +12,17 @@ int8_t GpsController::setup() {
 }
 
 int8_t GpsController::loop(uint32_t dt) {
-    if (Serial2.available() > 0) {
+    while (Serial2.available() > 0) {
         if (gps_.encode(Serial2.read())) {
             if (gps_.satellites.isValid() && gps_.location.isValid() && gps_.altitude.isValid()) {
-                if (gps_.location.isUpdated()) {
+                if (gps_.location.isUpdated() && gps_.altitude.isUpdated()) {
                     satellites_ = gps_.satellites.value();
                     latitude_ = gps_.location.lat();
                     longitude_ = gps_.location.lng();
                     altitude_ = gps_.altitude.meters();
                     new_data_ready_ = true;
 
-                    if (!is_ref_ && gps_.satellites.age() < kMaxValidTime && gps_.location.age() < kMaxValidTime && gps_.altitude.age() < kMaxValidTime) {
+                    if (!is_ref_ && gps_.location.age() < kMaxValidTime && gps_.altitude.age() < kMaxValidTime && satellites_ >= kMinSatellites) {
                         ref_latitude_ = latitude_;
                         ref_longitude_ = longitude_;
                         ref_altitude_ = altitude_;
@@ -40,7 +40,7 @@ int8_t GpsController::loop(uint32_t dt) {
         }
     }
 
-    if (gps_.satellites.age() > kMaxValidTime || gps_.location.age() > kMaxValidTime || gps_.altitude.age() > kMaxValidTime) {
+    if (gps_.location.age() > kMaxValidTime || gps_.altitude.age() > kMaxValidTime || satellites_ < kMinSatellites) {
         if (is_valid_) {
             is_valid_ = false;
             Serial.println("Warning: GPS Connection lost");
@@ -56,11 +56,15 @@ int8_t GpsController::loop(uint32_t dt) {
 }
 
 Vector3d GpsController::position() const {
-    if (!is_valid_ || !is_ref_) {
+    if (!is_ref_) {
         Serial.println("Warning: There is no valid position information yet");
         return Vector3d::Zero();
     }
 
+    if (!is_valid_) {
+        Serial.println("Warning: The position information might not be valid");
+    }
+    
     Vector3d sph{{latitude_, longitude_, altitude_}};
     return sph_to_cart(sph);
 }
@@ -87,14 +91,14 @@ Vector3d GpsController::sph_to_cart(const Vector3d& sph) const {
         return Vector3d(0., 0., 0.);
     }
 
-    double latitude = sph(1);
-    double longitude = sph(2);
+    double latitude = sph(0);
+    double longitude = sph(1);
     if (longitude < ref_longitude_ - 180.) {
         longitude += 360.;
     } else if (longitude > ref_longitude_ + 180.) {
         longitude -= 360.;
     }
-    double altitude = sph(3);
+    double altitude = sph(2);
 
     double radius = kSeaLevel + ref_altitude_;
     double m_per_deg = radius * DEG_TO_RAD;
@@ -102,7 +106,6 @@ Vector3d GpsController::sph_to_cart(const Vector3d& sph) const {
     double z = altitude - ref_altitude_;
     double y = (latitude - ref_latitude_) * m_per_deg;
     double x = (longitude - ref_longitude_) * cos(ref_latitude_) * m_per_deg;
-
     return Vector3d(x, y, z);
 }
 

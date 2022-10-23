@@ -18,6 +18,7 @@ public:
     // Acc-Noise: 150 ug/sqrt(Hz)
     // => Acc-Noise-Std-Dev = 150e-6 g/sqrt(Hz) * 9.81ms^-2/g * sqrt(62.5 Hz) = 0.01163 m/s^2
     static constexpr double kAccNoiseStdDev = 0.01163;  // Discrete Accelerometer standard deviation in m/s^2
+    //static constexpr double kAccNoiseStdDev = 0.023;  // Noise seems to be a little higher in reality due to uncertainty in gravity vector
     static constexpr double kAccBiasNoiseStdDev = 0.01163;  // Guessing this could be in the same range as the Acc-Noise
     static constexpr double kGpsXStdDev = 2.5;  // Accuracy of 2.5m CEP stated in datasheet
     static constexpr double kGpsYStdDev = 2.5;
@@ -54,6 +55,9 @@ private:
     // Writes line of format:
     // YYYY-MM-DD-HHMMSSCC:x1;x2;x3;v1;v2;v3;w;x;y;z\n
     void log_state() const;
+
+    MatrixXd position_kf_noise_cov() const;
+    MatrixXd position_kf_meas_cov() const;
 };
 
 #endif // FLIGHT_CONTROLLER_H_

@@ -33,7 +33,22 @@ FlightController::FlightController() : position_kf_(
         measure_jacobian(all, seq(0, 2)) = MatrixXd::Identity(3, 3);
         return measure_jacobian;
     },
-    MatrixXd{  // Continuous Noise Covariance
+    position_kf_noise_cov(),
+    position_kf_meas_cov()
+) {
+    is_active_ = false;
+    input_roll_ = 0.f;
+    input_pitch_ = 0.f;
+    input_yaw_ = 0.f;
+    input_flap_ = 0.f;
+    input_motor_ = 0.f;
+    is_kf_setup_ = false;
+    kf_last_propagate_ = 0;
+    last_log_elapsed_ = 0;
+}
+
+MatrixXd FlightController::position_kf_noise_cov() const {
+    MatrixXd noise_cov{  // Continuous Noise Covariance
         {0, 0, 0, 0, 0, 0, 0, 0, 0},
         {0, 0, 0, 0, 0, 0, 0, 0, 0},
         {0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -43,22 +58,18 @@ FlightController::FlightController() : position_kf_(
         {0, 0, 0, 0, 0, 0, kAccBiasNoiseStdDev*kAccBiasNoiseStdDev, 0, 0},
         {0, 0, 0, 0, 0, 0, 0, kAccBiasNoiseStdDev*kAccBiasNoiseStdDev, 0},
         {0, 0, 0, 0, 0, 0, 0, 0, kAccBiasNoiseStdDev*kAccBiasNoiseStdDev}
-    } * static_cast<double>(kImuUpdateFreq),  // Multiplication with update frequency to obtain continuous covariance
-    MatrixXd{  // Discrete Measurement Covariance
+    };  // Multiplication with update frequency to obtain continuous covariance
+    noise_cov *= static_cast<double>(kImuUpdateFreq);
+    return noise_cov;
+}
+
+MatrixXd FlightController::position_kf_meas_cov() const {
+    MatrixXd meas_cov{  // Discrete Measurement Covariance
         {kGpsXStdDev*kGpsXStdDev, 0, 0},
         {0, kGpsYStdDev*kGpsYStdDev, 0},
         {0, 0, kGpsZStdDev*kGpsZStdDev}
-    }
-) {
-    is_active_ = false;
-    input_roll_ = 0.f;
-    input_pitch_ = 0.f;
-    input_yaw_ = 0.f;
-    input_flap_ = 0.f;
-    input_motor_ = 0.f;
-    is_kf_setup_ = true;
-    kf_last_propagate_ = 0;
-    last_log_elapsed_ = 0;
+    };
+    return meas_cov;
 }
 
 int8_t FlightController::setup() {
@@ -108,6 +119,7 @@ int8_t FlightController::loop(uint32_t dt) {
             control << attitude.w(), attitude.x(), attitude.y(), attitude.z(), acceleration;
             double delta_second = static_cast<double>(kf_last_propagate_) / 1000000.;
             position_kf_.propagate(control, delta_second);
+            kf_last_propagate_ = 0;
         }
     }
 
@@ -125,6 +137,15 @@ int8_t FlightController::loop(uint32_t dt) {
         if (is_kf_setup_)  {  // Only log data if valid information is being computed
             last_log_elapsed_ -= kLogTime;
             log_state();
+            
+            VectorXd pos = position_kf_.state_vector()(seq(0, 2));
+            Serial.print(pos(0));
+            Serial.print("\t");
+            Serial.print(pos(1));
+            Serial.print("\t");
+            Serial.print(pos(2));
+            Serial.print("\t");
+            Serial.println(gps_.satellites());
         }
     }
 
