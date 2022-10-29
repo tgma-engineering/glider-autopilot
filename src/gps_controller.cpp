@@ -14,7 +14,7 @@ int8_t GpsController::setup() {
 int8_t GpsController::loop(uint32_t dt) {
     while (Serial2.available() > 0) {
         if (gps_.encode(Serial2.read())) {
-            if (gps_.satellites.isValid() && gps_.location.isValid() && gps_.altitude.isValid()) {
+            if (gps_.satellites.isValid() && gps_.location.isValid() && gps_.altitude.isValid() && gps_.satellites.value() >= kMinSatellites) {
                 if (gps_.location.isUpdated() && gps_.altitude.isUpdated()) {
                     satellites_ = gps_.satellites.value();
                     latitude_ = gps_.location.lat();

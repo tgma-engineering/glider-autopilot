@@ -304,10 +304,10 @@ void FlightController::log_state() const {
     double cm = utility_state(8);  // Motor coefficient
     gps_.time(year, month, day, time);
     sd_.append(String(year) + "-" + String(month) + "-" + String(day) + "-" + String(time) + ":" +
-                String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                    // Position
-                String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +                    // Velocity
-                String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + ";" +  // Attitude
-                String(w1, 3) + ";" + String(w2, 3) + ";" + String(w3, 3) + ";" +                    // Wind Speed
-                String(cw, 5) + ";" +                                                                // Drag Coefficient
-                String(cm, 3) + "\n");                                                               // Motor coefficient
+               String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                    // Position
+               String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +                    // Velocity
+               String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + ";" +  // Attitude
+               String(w1, 3) + ";" + String(w2, 3) + ";" + String(w3, 3) + ";" +                    // Wind Speed
+               String(cw, 5) + ";" +                                                                // Drag Coefficient
+               String(cm, 3) + "\n");                                                               // Motor coefficient
 }

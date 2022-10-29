@@ -13,12 +13,12 @@ void Autopilot::setup() {
     Serial.begin(115200);
 
     // Watchdog checks for infinite loops and resets MCU if it finds one
-    Serial.println("Setup Watchdog Timer ...");
-    esp_err_t esp_err_init = esp_task_wdt_init(kWatchdogTimeout, true);
+    Serial.println("Setup Setup Watchdog Timer ...");
+    esp_err_t esp_err_init = esp_task_wdt_init(kSetupWatchdogTimeout, true);
     esp_err_t esp_err_add = esp_task_wdt_add(NULL);
     if (esp_err_init != ESP_OK || esp_err_add != ESP_OK) {
         while (true) {
-            Serial.println("Error: Watchdog Timer Setup failed");
+            Serial.println("Error: Setup Watchdog Timer Setup failed");
             delay(1000);
         }
     }
@@ -46,6 +46,16 @@ void Autopilot::setup() {
     }
 
     esp_task_wdt_reset();
+
+    // Watchdog checks for infinite loops and resets MCU if it finds one
+    Serial.println("Setup Watchdog Timer ...");
+    esp_err_init = esp_task_wdt_init(kWatchdogTimeout, true);
+    if (esp_err_init != ESP_OK) {
+        while (true) {
+            Serial.println("Error: Watchdog Timer Setup failed");
+            delay(1000);
+        }
+    }
 
     //delay(1000);
 

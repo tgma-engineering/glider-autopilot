@@ -11,6 +11,7 @@
 
 class Autopilot {
 public:
+    static const uint8_t kSetupWatchdogTimeout = 3;  // Setup has a bit more time
     static const uint8_t kWatchdogTimeout = 1;  // In Seconds
 
     enum State {
