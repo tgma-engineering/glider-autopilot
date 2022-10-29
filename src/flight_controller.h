@@ -23,6 +23,12 @@ public:
     static constexpr double kGpsXStdDev = 2.5;  // Accuracy of 2.5m CEP stated in datasheet
     static constexpr double kGpsYStdDev = 2.5;
     static constexpr double kGpsZStdDev = 7.5;  // Kind of guessing from observation that vertical measurements could be about 3 times worse
+    static constexpr double kVelNoiseStdDev = 0.33;  // // Guessing max change is 3m/s in 3s -> 3*stddev = 3m/s / 3s -> stddev of 0.33m/s
+    static constexpr double kWindNoiseStdDev = 0.67;  // Guessing max change is 6m/s in 3s -> stddev of 0.67m/s
+    static constexpr double kDragNoiseStdDev = 0.0001;  // This is constant in reality. Just some really small stddev to make sure the kf keeps estimating it
+    static constexpr double kMotorNoiseStdDev = 0.0001;  // Same here
+    static constexpr double kDragConstInit = 0.02;  // Drag Acceleration = v^2 * rho*A*Cd/2/m = v^2 * DragConst
+    static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
     static const String kLogName;
     static const uint32_t kLogTime = 50000;  // In microseconds
 
@@ -36,16 +42,24 @@ public:
 
 private:
     bool is_active_;
+    // Controls input to the flight controller (not necessarily those that were applied to the servos)
     float input_roll_;
     float input_pitch_;
     float input_yaw_;
     float input_flap_;
     float input_motor_;
+    // Last (applied) output controls are saved here for data analysis purposes
+    float last_roll_;
+    float last_pitch_;
+    float last_yaw_;
+    float last_flap_;
+    float last_motor_;
 
     ImuController imu_;
     Quaterniond target_attitude_;
     GpsController gps_;
-    KalmanFilter position_kf_;
+    KalmanFilter position_kf_;  // Estimates position, velocity and accelerometer bias
+    KalmanFilter utility_kf_;   // Estimates windspeed, drag constant and motor constant
     bool is_kf_setup_;
     uint32_t kf_last_propagate_;
 
@@ -58,6 +72,7 @@ private:
 
     MatrixXd position_kf_noise_cov() const;
     MatrixXd position_kf_meas_cov() const;
+    MatrixXd utility_kf_noise_cov() const;
 };
 
 #endif // FLIGHT_CONTROLLER_H_

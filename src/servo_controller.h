@@ -38,7 +38,7 @@ public:
     static const bool kAileronRSBusInv = true;
 
     static const uint16_t kElevatorMin = 863;   // Down
-    static const uint16_t kElevatorMid = 1499;
+    static const uint16_t kElevatorMid = 1590;
     static const uint16_t kElevatorMax = 2272;  // Up
     static const bool kElevatorSBusInv = false;
 

@@ -7,7 +7,7 @@
 #include "servo_controller.h"
 #include "flight_controller.h"
 
-#define WATCHDOG_OFF 1
+#define WATCHDOG_OFF 0
 
 class Autopilot {
 public:

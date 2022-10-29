@@ -34,9 +34,9 @@ KalmanFilter::State operator-(const KalmanFilter::State& lhs, const KalmanFilter
 }
 
 KalmanFilter::KalmanFilter(function<VectorXd(const VectorXd&, const VectorXd&)> system_model,
-    function<VectorXd(const VectorXd&)> measure_model,
+    function<VectorXd(const VectorXd&, const VectorXd&)> measure_model,
     function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian,
-    function<MatrixXd(const VectorXd&)> measure_jacobian,
+    function<MatrixXd(const VectorXd&, const VectorXd&)> measure_jacobian,
     const MatrixXd& noise_cov, const MatrixXd& measure_cov) {
     system_model_ = system_model;
     measure_model_ = measure_model;
@@ -65,17 +65,18 @@ void KalmanFilter::propagate(const VectorXd& input, double dt) {
     state_ = new_state;
 }
 
-void KalmanFilter::update(const VectorXd& measurement) {
+void KalmanFilter::update(const VectorXd& measurement, const VectorXd& input) {
     auto n = state_.state_vector_.size();  // State size
     auto I_n = MatrixXd::Identity(n, n);   // Square Identity of state size
 
-    MatrixXd meas_jac = measure_jacobian_(state_.state_vector_);
+    MatrixXd meas_jac = measure_jacobian_(state_.state_vector_, input);
     // Kalman Gain Matrix
     MatrixXd K = state_.error_cov_ * meas_jac.transpose() * (meas_jac * state_.error_cov_ * meas_jac.transpose() + measure_cov_).inverse();
 
     State state_update;
-    state_update.state_vector_ = state_.state_vector_ + K * (measurement - measure_model_(state_.state_vector_));
-    state_update.error_cov_ = (I_n - K * meas_jac) * state_.error_cov_;  // Simple update, bad numerical stability and symmetry properties known
+    state_update.state_vector_ = state_.state_vector_ + K * (measurement - measure_model_(state_.state_vector_, input));
+    //state_update.error_cov_ = (I_n - K * meas_jac) * state_.error_cov_;  // Simple update, bad numerical stability and symmetry properties known
+    state_update.error_cov_ = (I_n - K * meas_jac) * state_.error_cov_ * (I_n - K * meas_jac).transpose() + K * measure_cov_ * K.transpose();  // Symmetric positive definite Joseph update
 
     state_ = state_update;
 }

@@ -50,8 +50,8 @@ void SBusController::get_controls(float& roll_out, float& pitch_out, float& yaw_
     int16_t motor_int = map(motor(), kSBusEffMax, kSBusEffMin, 0, 1000);
     
     roll_out = static_cast<float>(roll_int) / 1000.f;
-    pitch_out = static_cast<float>(roll_int) / 1000.f;
-    yaw_out = static_cast<float>(roll_int) / 1000.f;
-    flap_out = static_cast<float>(roll_int) / 1000.f;
-    motor_out = static_cast<float>(roll_int) / 1000.f;
+    pitch_out = static_cast<float>(pitch_int) / 1000.f;
+    yaw_out = static_cast<float>(yaw_int) / 1000.f;
+    flap_out = static_cast<float>(flap_int) / 1000.f;
+    motor_out = static_cast<float>(motor_int) / 1000.f;
 }

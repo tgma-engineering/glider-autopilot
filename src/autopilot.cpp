@@ -122,6 +122,11 @@ void Autopilot::loop() {
 
         if (sbus_has_data) {
             servos_.set_from_sbus(sbus_, set_motor);
+
+            // For tax purposes
+            float roll, pitch, yaw, flap, motor;
+            sbus_.get_controls(roll, pitch, yaw, flap, motor);
+            fc_.set_input(roll, pitch, yaw, flap, motor);
         }
     } else {  // There is only one auto mode yet
         fc_.set_active();

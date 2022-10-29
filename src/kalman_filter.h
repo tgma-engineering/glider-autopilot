@@ -36,13 +36,15 @@ public:
     };
 
     KalmanFilter(function<VectorXd(const VectorXd&, const VectorXd&)> system_model,
-        function<VectorXd(const VectorXd&)> measure_model,
+        function<VectorXd(const VectorXd&, const VectorXd&)> measure_model,
         function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian,
-        function<MatrixXd(const VectorXd&)> measure_jacobian,
+        function<MatrixXd(const VectorXd&, const VectorXd&)> measure_jacobian,
         const MatrixXd& noise_cov, const MatrixXd& measure_cov);
     void setup(const VectorXd& init_state, const MatrixXd& init_err_cov);
     void propagate(const VectorXd& input, double dt);
-    void update(const VectorXd& measurement);
+    void update(const VectorXd& measurement, const VectorXd& input);
+    void set_noise_cov(const MatrixXd& noise_cov) { noise_cov_ = noise_cov; }
+    void set_measure_cov(const MatrixXd& measure_cov) { measure_cov_ = measure_cov; }
     VectorXd state_vector() const { return state_.state_vector_; }
     MatrixXd error_cov() const { return state_.error_cov_; }
 
@@ -52,9 +54,9 @@ private:
     MatrixXd measure_cov_;  // Measurement Covariance
 
     function<VectorXd(const VectorXd&, const VectorXd&)> system_model_;     // x_dot = f(x, u)
-    function<VectorXd(const VectorXd&)> measure_model_;                     // z = h(x)
+    function<VectorXd(const VectorXd&, const VectorXd&)> measure_model_;    // z = h(x, u)
     function<MatrixXd(const VectorXd&, const VectorXd&)> system_jacobian_;  // df/dx
-    function<MatrixXd(const VectorXd&)> measure_jacobian_;                  // dh/dx
+    function<MatrixXd(const VectorXd&, const VectorXd&)> measure_jacobian_; // dh/dx
 };
 
 #endif  // KALMAN_FILTER_H_
