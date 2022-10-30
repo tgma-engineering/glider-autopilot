@@ -24,11 +24,13 @@ public:
     static constexpr double kGpsYStdDev = 2.5;
     static constexpr double kGpsZStdDev = 7.5;  // Kind of guessing from observation that vertical measurements could be about 3 times worse
     static constexpr double kVelNoiseStdDev = 0.33;  // // Guessing max change is 3m/s in 3s -> 3*stddev = 3m/s / 3s -> stddev of 0.33m/s
-    static constexpr double kWindNoiseStdDev = 0.67;  // Guessing max change is 6m/s in 3s -> stddev of 0.67m/s
+    static constexpr double kWindNoiseStdDev = 0.08;  // Guessing max change is 5m/s in 20s -> stddev of 0.08m/s
     static constexpr double kDragNoiseStdDev = 0.0001;  // This is constant in reality. Just some really small stddev to make sure the kf keeps estimating it
     static constexpr double kMotorNoiseStdDev = 0.0001;  // Same here
-    static constexpr double kDragConstInit = 0.02;  // Drag Acceleration = v^2 * rho*A*Cd/2/m = v^2 * DragConst
-    static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
+    //static constexpr double kDragConstInit = 0.02;  // Drag Acceleration = v^2 * rho*A*Cd/2/m = v^2 * DragConst
+    static constexpr double kDragConstInit = 0.14;  // Experimental data
+    //static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
+    static constexpr double kMotorConstInit = 1.3;  // Experimental data
     static const String kLogName;
     static const uint32_t kLogTime = 50000;  // In microseconds
 

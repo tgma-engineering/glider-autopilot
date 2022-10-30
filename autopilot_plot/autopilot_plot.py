@@ -1,21 +1,60 @@
+"""
+Autopilot Log Plotting Tool
+Call from the Autopilot Log Plotting Tool's directory with
+$ python3 autopilot_plot.py path/to/autopilot.log start_time end_time
+Time format is YYYY-MM-DD-HHMMSSCC (Second and Centisecond are optional)
+Plots will be saved to ./plot/
+Variable data_blocks stores how the data is formatted in the log file lines.
+"""
+
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import sys
 import datetime
 
+# Example times (Hours in GMT)
+# 2022-10-30-1115
+# 2022-10-30-11220000
+def str_to_time(str):
+    # Read time
+    year, month, day, t = str.split('-')
+    # Work around data logging bug
+    if (int(month) < 1 or int(month) > 12):
+        return None
+    if (int(day) < 1 or int(day) > 31):
+        return None
+    hours = int(t[0:2])
+    minutes = int(t[2:4])
+    if (len(t) > 4):
+        seconds = int(t[4:6])
+    else:
+        seconds = 0
+    if (len(t) > 6):   
+        centiseconds = int(t[6:8])
+    else:
+        centiseconds = 0
+    return datetime.datetime(int(year), int(month), int(day), hours, minutes, seconds, centiseconds * 1000)
+
 mpl.rcParams['font.size'] = 8
 
 argc = len(sys.argv)
 if (argc > 1):
     path = sys.argv[1]
-    if (argc > 2):
-        save_path = sys.argv[2]
-    else:
-        save_path = 'plots/'
 else:
     path = 'autopilot.log'
-    save_path = 'plots/'
+
+if (argc > 3):
+    start_time = str_to_time(sys.argv[2])
+    end_time = str_to_time(sys.argv[3])
+else:
+    start_time = None
+    end_time = None
+
+save_path = 'plots/'
+
+def update_mean(new_val, old_mean, old_num):
+    return (new_val + old_num * old_mean) / (old_num + 1)
 
 class PositionData:
     def __init__(self, name='position'):
@@ -62,13 +101,13 @@ class VelocityData:
         figure, axis = plt.subplots(3, 1, sharex='col', figsize=(6, 8))
         figure.suptitle('Velocity', fontsize=12)
         axis[0].plot(time_list, self.vx, 'k-', lw=1)
-        axis[0].set_ylabel('vx / m/s')
+        axis[0].set_ylabel('x / m/s')
         axis[0].grid(True)
         axis[1].plot(time_list, self.vy, 'k-', lw=1)
-        axis[1].set_ylabel('vy / m/s')
+        axis[1].set_ylabel('y / m/s')
         axis[1].grid(True)
         axis[2].plot(time_list, self.vz, 'k-', lw=1)
-        axis[2].set_ylabel('vz / m/s')
+        axis[2].set_ylabel('z / m/s')
         axis[2].grid(True)
         figure.tight_layout()
         figure.savefig(path + self.name + '.png', dpi = 500)
@@ -93,36 +132,37 @@ class TranslationData:  # Position and velocity
         self.vz.append(float(data[5]))
 
     def plot(self, time_list, path=''):
-        figure, axis = plt.subplots(3, 2, sharex='col', figsize=(12, 8))
+        figure, axis = plt.subplots(4, 2, sharex='col', figsize=(12, 11))
         figure.suptitle('Translation', fontsize=12)
         axis[0, 0].plot(time_list, self.x, 'k-', lw=1)
         axis[0, 0].set_title('Position', fontsize=10)
         axis[0, 0].set_ylabel('x / m')
-        axis[0, 0].tick_params(axis='y')
         axis[0, 0].grid(True)
         axis[1, 0].plot(time_list, self.y, 'k-', lw=1)
         axis[1, 0].set_ylabel('y / m')
-        axis[1, 0].tick_params(axis='y')
         axis[1, 0].grid(True)
         axis[2, 0].plot(time_list, self.z, 'k-', lw=1)
         axis[2, 0].set_ylabel('z / m')
-        axis[2, 0].tick_params(axis='x')
-        axis[2, 0].tick_params(axis='y')
         axis[2, 0].grid(True)
+        axis[3, 0].plot(time_list, [np.sqrt(self.x[i]**2 + self.y[i]**2 + self.z[i]**2) for i in range(len(self.x))], 'k-', lw=1)
+        axis[3, 0].set_title('Distance from Home', fontsize=10)
+        axis[3, 0].set_ylabel('d / m')
+        axis[3, 0].grid(True)
+
         axis[0, 1].plot(time_list, self.vx, 'k-', lw=1)
         axis[0, 1].set_title('Velocity', fontsize=10)
         axis[0, 1].set_ylabel('x / m/s')
-        axis[0, 1].tick_params(axis='y')
         axis[0, 1].grid(True)
         axis[1, 1].plot(time_list, self.vy, 'k-', lw=1)
         axis[1, 1].set_ylabel('y / m/s')
-        axis[1, 1].tick_params(axis='y')
         axis[1, 1].grid(True)
         axis[2, 1].plot(time_list, self.vz, 'k-', lw=1)
         axis[2, 1].set_ylabel('z / m/s')
-        axis[2, 1].tick_params(axis='x')
-        axis[2, 1].tick_params(axis='y')
         axis[2, 1].grid(True)
+        axis[3, 1].plot(time_list, [np.sqrt(self.vx[i]**2 + self.vy[i]**2 + self.vz[i]**2) for i in range(len(self.vx))], 'k-', lw=1)
+        axis[3, 1].set_title('Speed', fontsize=10)
+        axis[3, 1].set_ylabel('v / m/s')
+        axis[3, 1].grid(True)
         figure.tight_layout()
         figure.savefig(path + self.name + '.png', dpi = 500)
 
@@ -159,24 +199,108 @@ class AttitudeData:
         figure.tight_layout()
         figure.savefig(path + self.name + '.png', dpi = 500)
 
+class WindData:
+    def __init__(self, name='wind'):
+        self.length = 3
+        self.name = name
+        self.wx = []
+        self.wy = []
+        self.wz = []
+        self.mean_dir = 0.0
+        self.mean_vel = 0.0
+
+    def read(self, data):
+        self.wx.append(float(data[0]))
+        self.wy.append(float(data[1]))
+        self.wz.append(float(data[2]))
+        # Update means
+        direction = np.rad2deg(np.arctan2(float(data[0]), float(data[1])))
+        self.mean_dir = update_mean(direction, self.mean_dir, len(self.wx)-1)
+        velocity = np.sqrt(float(data[0])**2 + float(data[1])**2)
+        self.mean_vel = update_mean(velocity, self.mean_vel, len(self.wx)-1)
+
+    def plot(self, time_list, path=''):
+        figure, axis = plt.subplots(3, 1, sharex='col', figsize=(6, 8))
+        figure.suptitle('Wind', fontsize=12)
+        axis[0].plot(time_list, [np.rad2deg(np.arctan2(self.wx[i], self.wy[i])) for i in range(len(self.wx))], 'k-', lw=1)
+        axis[0].set_title(f'Direction (Mean: {self.mean_dir} deg)', fontsize=10)
+        axis[0].set_ylabel('dir / deg')
+        axis[0].grid(True)
+        axis[1].plot(time_list, [np.sqrt(self.wx[i]**2 + self.wy[i]**2) for i in range(len(self.wx))], 'k-', lw=1)
+        axis[1].set_title(f'Horizontal Speed (Mean: {self.mean_vel} m/s)', fontsize=10)
+        axis[1].set_ylabel('v_h / m/s')
+        axis[1].grid(True)
+        axis[2].plot(time_list, self.wz, 'k-', lw=1)
+        axis[2].set_title('Vertical Speed', fontsize=10)
+        axis[2].set_ylabel('v_v / m/s')
+        axis[2].grid(True)
+        figure.tight_layout()
+        figure.savefig(path + self.name + '.png', dpi = 500)
+
+class ParameterData:
+    def __init__(self, name='parameter'):
+        self.length = 2
+        self.name = name
+        self.cw = []
+        self.cm = []
+        self.mean_cw = 0.0
+        self.mean_cm = 0.0
+
+    def read(self, data):
+        self.cw.append(float(data[0]))
+        self.cm.append(float(data[1]))
+        # Update means
+        self.mean_cw = update_mean(float(data[0]), self.mean_cw, len(self.cw)-1)
+        self.mean_cm = update_mean(float(data[1]), self.mean_cm, len(self.cm)-1)
+
+    def plot(self, time_list, path=''):
+        figure, axis = plt.subplots(2, 1, sharex='col', figsize=(6, 5))
+        figure.suptitle('Parameter', fontsize=12)
+        axis[0].plot(time_list, self.cw, 'k-', lw=1)
+        axis[0].set_title(f'Drag Coefficient (Mean: {self.mean_cw} kg/m)', fontsize=10)
+        axis[0].set_ylabel('cw / kg/m')
+        axis[0].grid(True)
+        axis[1].plot(time_list, self.cm, 'k-', lw=1)
+        axis[1].set_title(f'Motor Coefficient (Mean: {self.mean_cm} N/kg)', fontsize=10)
+        axis[1].set_ylabel('cm / N/kg')
+        axis[1].grid(True)
+        figure.tight_layout()
+        figure.savefig(path + self.name + '.png', dpi = 500)
+
+class SatelliteData:
+    def __init__(self, name='satellites'):
+        self.length = 1
+        self.name = name
+        self.satellites = []
+
+    def read(self, data):
+        self.satellites.append(float(data[0]))
+
+    def plot(self, time_list, path=''):
+        figure, axis = plt.subplots(1, 1, sharex='col', figsize=(6, 3))
+        figure.suptitle('Received Number of Satellites', fontsize=12)
+        axis[0].plot(time_list, self.satellites, 'k-', lw=1)
+        axis[0].set_ylabel('s')
+        axis[0].grid(True)
+        figure.tight_layout()
+        figure.savefig(path + self.name + '.png', dpi = 500)
+
 # Specify what data the log consists of per line
-data_blocks = (TranslationData(), AttitudeData())
+data_blocks = (TranslationData(), AttitudeData(), WindData(), ParameterData(), SatelliteData())
 
 time_list = []
 
 with open(path, 'r') as file:
     for line in file:
-        time, data = line.split(':')
+        time_str, data = line.split(':')
 
         # Read time
-        year, month, day, t = time.split('-')
-        if (int(month) == 0):  # Work around data logging bug
+        time = str_to_time(time_str)
+        if (time is None or (not start_time is None and time < start_time)):
             continue
-        hours = int(t[0:2])
-        minutes = int(t[2:4])
-        seconds = int(t[4:6])
-        centiseconds = int(t[6:8])
-        time_list.append(datetime.datetime(int(year), int(month), int(day), hours, minutes, seconds, centiseconds * 1000))
+        elif (not end_time is None and time > end_time):
+            break
+        time_list.append(time)
 
         # Read data
         words = data.split(';')

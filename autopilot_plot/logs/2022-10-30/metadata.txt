@@ -1,0 +1,7 @@
+Date: 2022-10-30
+Local Time: GMT+1
+Start Time (GMT): 11:15
+End Time (GMT): 11:22
+Data: Position(3), Velocity(3), Attitude(4), Wind(3), Drag Coefficient(1), Motor Coefficient(1)
+Wind Direction: SSE
+Ground Wind Speed: 4 m/s
