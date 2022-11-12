@@ -125,6 +125,7 @@ MatrixXd FlightController::position_kf_meas_cov() const {
 
 MatrixXd FlightController::utility_kf_noise_cov() const {
     MatrixXd noise_cov = MatrixXd::Zero(9, 9);
+    noise_cov(seq(0, 2), seq(0, 2)) = MatrixXd::Identity(3, 3) * sq(kPosNoiseStdDev);
     noise_cov(3, 3) = sq(kVelNoiseStdDev);
     noise_cov(seq(4, 6), seq(4, 6)) = MatrixXd::Identity(3, 3) * sq(kWindNoiseStdDev);
     noise_cov(7, 7) = sq(kDragNoiseStdDev);
@@ -186,6 +187,7 @@ int8_t FlightController::loop(uint32_t dt) {
     if (imu_.new_data_ready()) {
         Quaterniond attitude = imu_.attitude();
         VectorXd acceleration = imu_.acceleration();
+        VectorXd ang_vel = imu_.ang_velocity();
         if (is_kf_setup_) {
             VectorXd position_control(7);
             position_control << attitude.w(), attitude.x(), attitude.y(), attitude.z(), acceleration;
@@ -204,6 +206,15 @@ int8_t FlightController::loop(uint32_t dt) {
             // Update
             VectorXd utility_measurement = position_kf_.state_vector().head(6);  // x1, x2, x3, v1, v2, v3
             utility_kf_.update(utility_measurement, utility_control);
+
+            // Use windspeed data of utility_kf to estimate control surface effect using least squares
+            double v_rel = utility_kf_.state_vector()(3);
+            roll_ls_.add_row(Vector2d(v_rel * sgn(input_roll_) * sqrt(abs(input_roll_)), 1.), ang_vel(1));
+            manage_least_squares(roll_ls_, roll_ls_last_recomp_);
+            pitch_ls_.add_row(Vector2d(v_rel * sgn(input_pitch_) * sqrt(abs(input_pitch_)), 1.), ang_vel(0));
+            manage_least_squares(pitch_ls_, pitch_ls_last_recomp_);
+            yaw_ls_.add_row(Vector2d(v_rel * sgn(input_yaw_) * sqrt(abs(input_yaw_)), 1.), ang_vel(2));
+            manage_least_squares(yaw_ls_, yaw_ls_last_recomp_);
         }
     }
 
@@ -312,4 +323,20 @@ void FlightController::log_state() const {
                String(cw, 5) + ";" +                                                                // Drag Coefficient
                String(cm, 3) + ";" +                                                                // Motor coefficient
                String(satellites) + "\n");                                                          // Number of active gps satellites
+}
+
+void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recomp) {
+    if (ls.rows() <= kMinLsRows) {
+        if (ls.rows() == kMinLsRows) {
+            ls.recompute_qr();
+            ls_last_recomp = ls.rows();
+        }
+    } else if (ls.rows() >= kMaxLsRows) {  // Too many new rows
+        // -1 shouldn't be necessary but prevents possible off-by-one errors
+        ls.remove_n_rows(static_cast<int>(static_cast<double>(kMaxLsRows) * kLsNewRowRatio) - 1);
+        ls_last_recomp = ls.rows();
+    } else if (1. - static_cast<double>(ls_last_recomp) / static_cast<double>(ls.rows()) > kLsNewRowRatio) {  // Too many new rows
+        ls.recompute_qr();
+        ls_last_recomp = ls.rows();
+    }
 }

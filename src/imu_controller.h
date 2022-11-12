@@ -30,7 +30,7 @@ private:
     Adafruit_BNO055 bno_;
     Quaterniond attitude_;   // Local-to-Global, for (1,0,0,0) y points north, x east and z points up
     Vector3d acceleration_;  // Acceleration without gravity in body frame in m/s^2
-    Vector3d ang_velocity_;  // Angular Velocity in body frame in dps
+    Vector3d ang_velocity_;  // Angular Velocity in body frame in rad per second
     Vector3d gravity_;       // Gravity in body frame in m/s^2
     bool new_data_ready_;
 };

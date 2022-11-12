@@ -19,7 +19,7 @@ int8_t ImuController::loop(uint32_t dt) {
         imu::Vector<3> acceleration = bno_.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
         acceleration_ = Vector3d(acceleration(0), acceleration(1), acceleration(2));
         imu::Vector<3> ang_velocity = bno_.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-        ang_velocity_ = Vector3d(ang_velocity(0), ang_velocity(1), ang_velocity(2));
+        ang_velocity_ = Vector3d(ang_velocity(0), ang_velocity(1), ang_velocity(2)) * PI / 180.;  // dps to rad/s
         imu::Vector<3> gravity = bno_.getVector(Adafruit_BNO055::VECTOR_GRAVITY);
         gravity_ = Vector3d(gravity(0), gravity(1), gravity(2));
 

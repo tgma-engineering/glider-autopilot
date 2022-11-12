@@ -7,6 +7,7 @@
 #include "imu_controller.h"
 #include "gps_controller.h"
 #include "kalman_filter.h"
+#include "least_squares.h"
 #include "sd_controller.h"
 
 using namespace Eigen;
@@ -23,7 +24,8 @@ public:
     static constexpr double kGpsXStdDev = 2.5;  // Accuracy of 2.5m CEP stated in datasheet
     static constexpr double kGpsYStdDev = 2.5;
     static constexpr double kGpsZStdDev = 7.5;  // Kind of guessing from observation that vertical measurements could be about 3 times worse
-    static constexpr double kVelNoiseStdDev = 0.33;  // // Guessing max change is 3m/s in 3s -> 3*stddev = 3m/s / 3s -> stddev of 0.33m/s
+    static constexpr double kVelNoiseStdDev = 0.33;  // Guessing max change is 3m/s in 3s -> 3*stddev = 3m/s / 3s -> stddev of 0.33m/s
+    static constexpr double kPosNoiseStdDev = 0.17;  // Guessing max change is 2m in 4s -> stddev of 0.17m
     static constexpr double kWindNoiseStdDev = 0.08;  // Guessing max change is 5m/s in 20s -> stddev of 0.08m/s
     static constexpr double kDragNoiseStdDev = 0.0001;  // This is constant in reality. Just some really small stddev to make sure the kf keeps estimating it
     static constexpr double kMotorNoiseStdDev = 0.0001;  // Same here
@@ -31,8 +33,13 @@ public:
     static constexpr double kDragConstInit = 0.14;  // Experimental data
     //static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
     static constexpr double kMotorConstInit = 1.3;  // Experimental data
+    static const int32_t kMaxLsRows = 1000;  // Maximum and Minimum number of rows in least squares matrix
+    static const int32_t kMinLsRows = 100;
+    static constexpr double kLsNewRowRatio = 0.2;  // Allowed percentage of recursively added rows before QR is recomputed from scratch
     static const String kLogName;
     static const uint32_t kLogTime = 50000;  // In microseconds
+
+    static inline double sgn(double a) { return a >= 0. ? 1. : -1.; }
 
     FlightController();
     virtual int8_t setup();
@@ -60,10 +67,22 @@ private:
     ImuController imu_;
     Quaterniond target_attitude_;
     GpsController gps_;
+
     KalmanFilter position_kf_;  // Estimates position, velocity and accelerometer bias
     KalmanFilter utility_kf_;   // Estimates windspeed, drag constant and motor constant
     bool is_kf_setup_;
     uint32_t kf_last_propagate_;
+
+    // v_rel * sqrt(r) * c + w_0 = w
+    // w is angular velocity, v_rel is forward speed relative to the wind, w_0 is base angular drift, r is control surface angle
+    // One Least Squares system for each roll, pitch and yaw
+    // Estimates constant c and drift w_0. They are returned as a vector in this order by ls.solve()
+    LeastSquares roll_ls_;
+    LeastSquares pitch_ls_;
+    LeastSquares yaw_ls_;
+    int32_t roll_ls_last_recomp_;  // At which row number of LS-Matrix was QR-Factorization last recomputed from scratch
+    int32_t pitch_ls_last_recomp_;
+    int32_t yaw_ls_last_recomp_;
 
     SdController sd_;
     uint32_t last_log_elapsed_;  // Time in microseconds since the last Log written to SD card
@@ -75,6 +94,10 @@ private:
     MatrixXd position_kf_noise_cov() const;
     MatrixXd position_kf_meas_cov() const;
     MatrixXd utility_kf_noise_cov() const;
+
+    // Makes sure that QR is recomputed regularly and that LS Matrix doesn't get too big
+    // Must be called at every update of ls
+    void manage_least_squares(LeastSquares& ls, int& ls_last_recomp);
 };
 
 #endif // FLIGHT_CONTROLLER_H_
