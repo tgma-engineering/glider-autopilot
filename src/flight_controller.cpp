@@ -245,7 +245,7 @@ int8_t FlightController::loop(uint32_t dt) {
 void FlightController::set_active() {
     if (!is_active_) {
         is_active_ = true;
-        target_attitude_ = imu_.attitude();  // Set current attitude as target
+        target_attitude_ = imu_.attitude();  // Set current attitude as target attitude
     }
 }
 
@@ -272,13 +272,18 @@ void FlightController::set_input(float roll, float pitch, float yaw, float flap,
 
 void FlightController::controls(float& roll, float& pitch, float& yaw, float& flap, float& motor, uint32_t dt) {
     // Update target attitude using the inputs
+    update_target_attitude(dt);
 
     // Generate controls
+    double roll_control = 0.;
+    double pitch_control = 0.;
+    double yaw_control = 0.;
+    attitude_controls(roll_control, pitch_control, yaw_control);
 
     // Save controls in those
-    roll = input_roll_;
-    pitch = input_pitch_;
-    yaw = input_yaw_;
+    roll = roll_control;
+    pitch = pitch_control;
+    yaw = yaw_control;
     flap = input_flap_;
     motor = input_motor_;
     // Save last controls
@@ -339,4 +344,94 @@ void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recom
         ls.recompute_qr();
         ls_last_recomp = ls.rows();
     }
+}
+
+void FlightController::update_target_attitude(uint32_t dt) {
+    double d_sec = static_cast<double>(dt) / 1000000.;
+
+    Matrix3d R = target_attitude_.toRotationMatrix();
+    // R = Yaw * Pitch * Roll (First Roll, then Pitch, then finally Yaw)
+    Vector3d euler = R.eulerAngles(2, 0, 1);
+
+    // Yaw
+    euler(0) += constrain(-input_roll_ * kMaxYawRate + input_yaw_ * kMaxYawRate / 10., -kMaxYawRate, kMaxYawRate) * d_sec;
+    // Pitch
+    euler(1) = constrain(input_pitch_ * kMaxPitch, -kMaxPitch, kMaxPitch);
+    // Roll
+    euler(2) = constrain(input_roll_ * kMaxRoll, -kMaxRoll, kMaxRoll);
+    // Dependency on Target Heading and speed can be added later to those controls
+
+    // Reassemble Rotation
+    R = AngleAxisd(euler(0), Vector3d::UnitZ()) * AngleAxisd(euler(1), Vector3d::UnitX()) * AngleAxisd(euler(2), Vector3d::UnitY());
+    target_attitude_ = Quaterniond(R);
+}
+
+void FlightController::attitude_controls(double& roll, double& pitch, double& yaw) {
+    // The following block doesn't have to be recomputed at every step (Just save K and the three ctrl_0s)
+
+    double v_rel = utility_kf_.state_vector()(3);
+
+    // Add steady state roll, pitch and yaw to compensate for angular drift w0
+    Vector2d pitch_ls_sol = pitch_ls_.solve();
+    Vector2d roll_ls_sol = roll_ls_.solve();
+    Vector2d yaw_ls_sol = yaw_ls_.solve();
+    // sqrt(r_0) = -w_0 / (c * v_rel)
+    double sqrt_ctrl_0_pitch = -pitch_ls_sol(1) / (pitch_ls_sol(0) * v_rel);
+    double sqrt_ctrl_0_roll = -roll_ls_sol(1) / (roll_ls_sol(0) * v_rel);
+    double sqrt_ctrl_0_yaw = -yaw_ls_sol(1) / (yaw_ls_sol(0) * v_rel);
+    double ctrl_0_pitch = sgn(sqrt_ctrl_0_pitch) * sq(sqrt_ctrl_0_pitch);
+    double ctrl_0_roll = sgn(sqrt_ctrl_0_roll) * sq(sqrt_ctrl_0_roll);
+    double ctrl_0_yaw = sgn(sqrt_ctrl_0_yaw) * sq(sqrt_ctrl_0_yaw);
+
+    // LQR
+    MatrixXd A = MatrixXd::Zero(3, 3);
+    MatrixXd B = (Vector3d(pitch_ls_sol(0), roll_ls_sol(0), yaw_ls_sol(0)) * v_rel).asDiagonal();
+    MatrixXd Q = Vector3d(100., 100., 100.).asDiagonal();  // LQR Controller tuning in here for now
+    MatrixXd R = Vector3d(0.1, 0.1, 0.1).asDiagonal();
+
+    MatrixXd K = lqr(A, B, Q, R);
+
+    // Block that doesn't have to be recomputed every step ends here
+
+    Quaterniond attitude = imu_.attitude();
+    Quaterniond d_att = target_attitude_.conjugate() * attitude;
+    Vector3d d_theta(2.*d_att.x(), 2.*d_att.y(), 2.*d_att.z());
+
+    Vector3d sqrt_ctrl = -K * d_theta;
+    
+    pitch = ctrl_0_pitch + sgn(sqrt_ctrl(0)) * sq(sqrt_ctrl(0));
+    roll = ctrl_0_roll + sgn(sqrt_ctrl(1)) * sq(sqrt_ctrl(1));
+    yaw = ctrl_0_yaw + sgn(sqrt_ctrl(2)) * sq(sqrt_ctrl(2));
+}
+
+MatrixXd FlightController::lqr(const MatrixXd& A, const MatrixXd& B, const MatrixXd& Q, const MatrixXd& R) {
+    // Solve the continuous time algebraic Riccati Equation (Like in Wikipedia)
+    int n = A.rows();
+    MatrixXd R_inv = R.inverse();
+
+    MatrixXd Z = MatrixXd::Zero(2*n, 2*n);
+    Z.topLeftCorner(n, n) = A;
+    Z.topRightCorner(n, n) = -B * R_inv * B.transpose();
+    Z.bottomLeftCorner(n, n) = -Q;
+    Z.bottomRightCorner(n, n) = -A.transpose();
+
+    EigenSolver<MatrixXd> eigs(Z);
+    VectorXd eig_real = eigs.eigenvalues().real();
+
+    // Find eigenvalues with negative real part. Their corresponding eigenvectors (always real)
+    // will span a System from which P can be derived.
+    MatrixXd U = MatrixXd::Zero(2*n, n);
+    int j = 0;
+    for (int i = 0; i < 2*n; ++i) {
+        if (eig_real(i) < 0.) {
+            U.col(j) = eigs.eigenvectors().col(i);
+            ++j;
+        }
+    }
+
+    MatrixXd U1 = U.topRows(n);
+    MatrixXd U2 = U.bottomRows(n);
+    MatrixXd P = U2 * U1.inverse();
+    MatrixXd K = R_inv * B.transpose() * P;
+    return K;
 }

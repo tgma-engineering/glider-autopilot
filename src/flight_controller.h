@@ -39,6 +39,11 @@ public:
     static const String kLogName;
     static const uint32_t kLogTime = 50000;  // In microseconds
 
+    // Flight angle limiters
+    static constexpr double kMaxRoll = 30. * PI/180.;  // In Rad
+    static constexpr double kMaxPitch = 30. * PI/180.;
+    static constexpr double kMaxYawRate = 45. * PI/180.;  // In Rad/s
+
     static inline double sgn(double a) { return a >= 0. ? 1. : -1.; }
 
     FlightController();
@@ -98,6 +103,10 @@ private:
     // Makes sure that QR is recomputed regularly and that LS Matrix doesn't get too big
     // Must be called at every update of ls
     void manage_least_squares(LeastSquares& ls, int& ls_last_recomp);
+
+    void update_target_attitude(uint32_t dt);
+    void attitude_controls(double& roll, double& pitch, double& yaw);
+    MatrixXd lqr(const MatrixXd& A, const MatrixXd& B, const MatrixXd& Q, const MatrixXd& R);
 };
 
 #endif // FLIGHT_CONTROLLER_H_
