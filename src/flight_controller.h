@@ -44,6 +44,15 @@ public:
     static constexpr double kMaxPitch = 30. * PI/180.;
     static constexpr double kMaxYawRate = 45. * PI/180.;  // In Rad/s
 
+    // Default values for flight controller, if Kalman Filters and Least Squares estimators are not set up
+    static constexpr double kVRelDefault = 15.;  // In m/s
+    static constexpr double kW0PitchDefault = 0.;  // In Rad/s
+    static constexpr double kW0RollDefault = 0.;  // In Rad/s
+    static constexpr double kW0YawDefault = 0.;  // In Rad/s
+    static constexpr double kCPitchDefault = 0.9;  // In Rad/m  <- Those are really just wild guesses at this point.
+    static constexpr double kCRollDefault = 0.28;  // In Rad/m      Hopefully nobody will every have to rely on them for anything other than testing
+    static constexpr double kCYawDefault = 0.03;  // In Rad/m
+
     static inline double sgn(double a) { return a >= 0. ? 1. : -1.; }
 
     FlightController();

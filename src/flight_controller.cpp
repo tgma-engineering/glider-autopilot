@@ -346,62 +346,134 @@ void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recom
     }
 }
 
+void send_float(float f) {
+    char* pt = (char*) &f;
+    for (int i = 0; i < 4; ++i) {
+        Serial.write(*pt++);
+    }
+}
+
+void send_quat(const Quaterniond& q) {
+    float w = static_cast<float>(q.w());
+    float x = static_cast<float>(q.x());
+    float y = static_cast<float>(q.y());
+    float z = static_cast<float>(q.z());
+
+    send_float(w);
+    send_float(x);
+    send_float(y);
+    send_float(z);
+}
+
 void FlightController::update_target_attitude(uint32_t dt) {
     double d_sec = static_cast<double>(dt) / 1000000.;
 
     Matrix3d R = target_attitude_.toRotationMatrix();
     // R = Yaw * Pitch * Roll (First Roll, then Pitch, then finally Yaw)
     Vector3d euler = R.eulerAngles(2, 0, 1);
+    // eulerAngles is bullshit because it restricts the first angle (yaw in this case) to
+    // a range of 0 to pi. I need the second angle (pitch) to be restricted to -pi/2 to pi/2 though.
+    // This means that every time yaw would become negative the other angles just explode and do random shit
+    // Such that yaw stays within its bounds. To work around that I detect that behaviour and rotate R into
+    // positive yaw territory. Then everything behaves fine, I take the eulerAngles and just have to manually
+    // subtract that rotation just from yaw.
+    if (euler(1) >= M_PI/2. || euler(1) <= -M_PI/2.) {
+		euler = (AngleAxisd(M_PI, Vector3d::UnitZ()) * R).eulerAngles(2, 0, 1);
+		euler(0) -= M_PI;
+	}
 
     // Yaw
-    euler(0) += constrain(-input_roll_ * kMaxYawRate + input_yaw_ * kMaxYawRate / 10., -kMaxYawRate, kMaxYawRate) * d_sec;
+    euler(0) += constrain(input_roll_ * kMaxYawRate + input_yaw_ * kMaxYawRate / 5., -kMaxYawRate, kMaxYawRate) * d_sec;
     // Pitch
     euler(1) = constrain(input_pitch_ * kMaxPitch, -kMaxPitch, kMaxPitch);
     // Roll
-    euler(2) = constrain(input_roll_ * kMaxRoll, -kMaxRoll, kMaxRoll);
+    euler(2) = constrain(-input_roll_ * kMaxRoll, -kMaxRoll, kMaxRoll);
     // Dependency on Target Heading and speed can be added later to those controls
-
     // Reassemble Rotation
     R = AngleAxisd(euler(0), Vector3d::UnitZ()) * AngleAxisd(euler(1), Vector3d::UnitX()) * AngleAxisd(euler(2), Vector3d::UnitY());
     target_attitude_ = Quaterniond(R);
+
+    // For debug porposes, sends attitude information to matlab script
+    Serial.write('s');
+    send_quat(target_attitude_);
+
+    delay(10);
 }
 
 void FlightController::attitude_controls(double& roll, double& pitch, double& yaw) {
+    const double recomp_threshold = 0.2;
+
+    static bool is_K_set = false;
+    static double last_v_rel = 0;
+    static Vector2d last_pitch_ls_sol(0, 0);
+    static Vector2d last_roll_ls_sol(0, 0);
+    static Vector2d last_yaw_ls_sol(0, 0);
+    static MatrixXd last_K = MatrixXd::Zero(3, 3);
+    static double last_ctrl_0_pitch = 0;
+    static double last_ctrl_0_roll = 0;
+    static double last_ctrl_0_yaw = 0;
+
+    double v_rel;
+    Vector2d pitch_ls_sol;
+    Vector2d roll_ls_sol;
+    Vector2d yaw_ls_sol;
+    if (is_kf_setup_) {
+        v_rel = utility_kf_.state_vector()(3);
+        // Add steady state roll, pitch and yaw to compensate for angular drift w0
+        pitch_ls_sol = pitch_ls_.solve();
+        roll_ls_sol = roll_ls_.solve();
+        yaw_ls_sol = yaw_ls_.solve();
+    } else {  // Use hard coded default values if there is not estimator data available
+        v_rel = kVRelDefault;
+        pitch_ls_sol = Vector2d(kCPitchDefault, kW0PitchDefault);
+        roll_ls_sol = Vector2d(kCRollDefault, kW0RollDefault);
+        yaw_ls_sol = Vector2d(kCYawDefault, kW0YawDefault);
+    }
+
     // The following block doesn't have to be recomputed at every step (Just save K and the three ctrl_0s)
+    bool too_much_param_change = last_v_rel == 0. || abs(v_rel - last_v_rel)/last_v_rel > recomp_threshold ||
+                                 last_pitch_ls_sol(0) == 0. || abs(pitch_ls_sol(0) - last_pitch_ls_sol(0))/last_pitch_ls_sol(0) > recomp_threshold ||
+                                 last_roll_ls_sol(0) == 0. || abs(roll_ls_sol(0) - last_roll_ls_sol(0))/last_roll_ls_sol(0) > recomp_threshold ||
+                                 last_yaw_ls_sol(0) == 0. || abs(yaw_ls_sol(0) - last_yaw_ls_sol(0))/last_yaw_ls_sol(0) > recomp_threshold;
+                                 // The change in w0 is not taken into account because it will produce big relative changes without necessarily influencing controller behaviour
+    if (!is_K_set || too_much_param_change) {
+        // sqrt(r_0) = -w_0 / (c * v_rel)
+        double sqrt_ctrl_0_pitch = -pitch_ls_sol(1) / (pitch_ls_sol(0) * v_rel);
+        double sqrt_ctrl_0_roll = -roll_ls_sol(1) / (roll_ls_sol(0) * v_rel);
+        double sqrt_ctrl_0_yaw = -yaw_ls_sol(1) / (yaw_ls_sol(0) * v_rel);
+        double ctrl_0_pitch = sgn(sqrt_ctrl_0_pitch) * sq(sqrt_ctrl_0_pitch);
+        double ctrl_0_roll = sgn(sqrt_ctrl_0_roll) * sq(sqrt_ctrl_0_roll);
+        double ctrl_0_yaw = sgn(sqrt_ctrl_0_yaw) * sq(sqrt_ctrl_0_yaw);
 
-    double v_rel = utility_kf_.state_vector()(3);
+        // LQR
+        MatrixXd A = MatrixXd::Zero(3, 3);
+        MatrixXd B = (Vector3d(pitch_ls_sol(0), roll_ls_sol(0), yaw_ls_sol(0)) * v_rel).asDiagonal();
+        MatrixXd Q = Vector3d(2., 2., 2.).asDiagonal();  // LQR Controller tuning in here for now
+        MatrixXd R = Vector3d(0.1, 0.1, 0.1).asDiagonal();
 
-    // Add steady state roll, pitch and yaw to compensate for angular drift w0
-    Vector2d pitch_ls_sol = pitch_ls_.solve();
-    Vector2d roll_ls_sol = roll_ls_.solve();
-    Vector2d yaw_ls_sol = yaw_ls_.solve();
-    // sqrt(r_0) = -w_0 / (c * v_rel)
-    double sqrt_ctrl_0_pitch = -pitch_ls_sol(1) / (pitch_ls_sol(0) * v_rel);
-    double sqrt_ctrl_0_roll = -roll_ls_sol(1) / (roll_ls_sol(0) * v_rel);
-    double sqrt_ctrl_0_yaw = -yaw_ls_sol(1) / (yaw_ls_sol(0) * v_rel);
-    double ctrl_0_pitch = sgn(sqrt_ctrl_0_pitch) * sq(sqrt_ctrl_0_pitch);
-    double ctrl_0_roll = sgn(sqrt_ctrl_0_roll) * sq(sqrt_ctrl_0_roll);
-    double ctrl_0_yaw = sgn(sqrt_ctrl_0_yaw) * sq(sqrt_ctrl_0_yaw);
+        MatrixXd K = lqr(A, B, Q, R);
+        
+        last_K = K;
+        last_v_rel = v_rel;
+        last_pitch_ls_sol = pitch_ls_sol;
+        last_roll_ls_sol = roll_ls_sol;
+        last_yaw_ls_sol = yaw_ls_sol;
+        last_ctrl_0_pitch = ctrl_0_pitch;
+        last_ctrl_0_roll = ctrl_0_roll;
+        last_ctrl_0_yaw = ctrl_0_yaw;
 
-    // LQR
-    MatrixXd A = MatrixXd::Zero(3, 3);
-    MatrixXd B = (Vector3d(pitch_ls_sol(0), roll_ls_sol(0), yaw_ls_sol(0)) * v_rel).asDiagonal();
-    MatrixXd Q = Vector3d(100., 100., 100.).asDiagonal();  // LQR Controller tuning in here for now
-    MatrixXd R = Vector3d(0.1, 0.1, 0.1).asDiagonal();
-
-    MatrixXd K = lqr(A, B, Q, R);
-
-    // Block that doesn't have to be recomputed every step ends here
+        is_K_set = true;
+    }  // Block that doesn't have to be recomputed every step ends here
 
     Quaterniond attitude = imu_.attitude();
     Quaterniond d_att = target_attitude_.conjugate() * attitude;
     Vector3d d_theta(2.*d_att.x(), 2.*d_att.y(), 2.*d_att.z());
 
-    Vector3d sqrt_ctrl = -K * d_theta;
+    Vector3d sqrt_ctrl = -last_K * d_theta;
     
-    pitch = ctrl_0_pitch + sgn(sqrt_ctrl(0)) * sq(sqrt_ctrl(0));
-    roll = ctrl_0_roll + sgn(sqrt_ctrl(1)) * sq(sqrt_ctrl(1));
-    yaw = ctrl_0_yaw + sgn(sqrt_ctrl(2)) * sq(sqrt_ctrl(2));
+    pitch = last_ctrl_0_pitch + sgn(sqrt_ctrl(0)) * sq(sqrt_ctrl(0));
+    roll = last_ctrl_0_roll + sgn(sqrt_ctrl(1)) * sq(sqrt_ctrl(1));
+    yaw = last_ctrl_0_yaw + sgn(sqrt_ctrl(2)) * sq(sqrt_ctrl(2));
 }
 
 MatrixXd FlightController::lqr(const MatrixXd& A, const MatrixXd& B, const MatrixXd& Q, const MatrixXd& R) {
@@ -424,7 +496,7 @@ MatrixXd FlightController::lqr(const MatrixXd& A, const MatrixXd& B, const Matri
     int j = 0;
     for (int i = 0; i < 2*n; ++i) {
         if (eig_real(i) < 0.) {
-            U.col(j) = eigs.eigenvectors().col(i);
+            U.col(j) = eigs.eigenvectors().col(i).real();
             ++j;
         }
     }

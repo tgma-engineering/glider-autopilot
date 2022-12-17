@@ -19,8 +19,8 @@ public:
     static const uint8_t kRudderChannel = 3;
     static const uint8_t kFlapChannel = 9;
     static const uint8_t kMotorChannel = 8;
-    static const uint8_t kArmSwitchChannel = 13;
-    static const uint8_t kManualSwitchChannel = 2;
+    static const uint8_t kArmSwitchChannel = 13;  // The one left of SB. Forward is disarmed, backward is armed
+    static const uint8_t kManualSwitchChannel = 2;  // SG, Down is manual
 
     // These two functions don't access member variables, they are intended as utilities only
     static bool is_armed(uint16_t sbus_arm_switch);

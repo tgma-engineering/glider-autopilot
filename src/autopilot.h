@@ -16,7 +16,7 @@ public:
 
     enum State {
         kIdle,      // Wait for SBus
-        kArmFail,   // Arm failed somehow, disarm to continue
+        //kArmFail,   // Arm failed somehow, disarm to continue
         kDisarmed,  // Default flight-ready state
         kArmed      // The only state in which motor is enabled
     };

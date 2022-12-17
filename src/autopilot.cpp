@@ -90,36 +90,13 @@ void Autopilot::loop() {
     if (sbus_has_data) {
         mode_ = static_cast<Mode>(SBusController::manual_switch_state(sbus_.manual_switch()));
 
-        if (state_ == kIdle) {
-            if (SBusController::is_armed(sbus_.arm_switch())) {
-                state_ = kArmFail;
-                Serial.println("Warning: System must start disarmed");
-            } else {
-                state_ = kDisarmed;
-            }
-        }
-        if (state_ == kArmFail) {
-            if (!SBusController::is_armed(sbus_.arm_switch())) {
-                state_ = kDisarmed;
-            }
-        }
-        if (state_ == kDisarmed) {
-            if (SBusController::is_armed(sbus_.arm_switch())) {
-                if (ServoController::is_motor_on(sbus_.motor())) {
-                    state_ = kArmFail;
-                    Serial.println("Warning: Motor cannot be on when arming");
-                } else if (mode_ != kManual) {
-                    state_ = kArmFail;
-                    Serial.println("Warning: Flying must start in manual mode");
-                } else {
-                    state_ = kArmed;
-                }
-            }
-        }
-        if (state_ == kArmed) {
-            if (!SBusController::is_armed(sbus_.arm_switch())) {
-                state_ = kDisarmed;
-            }
+        // No safety features but the ability to quickly recover from system resets
+        if ((state_ == kDisarmed || state_ == kIdle) && SBusController::is_armed(sbus_.arm_switch())) {
+            state_ = kArmed;
+            Serial.println("System is armed");
+        } else if (state_ == kArmed && !SBusController::is_armed(sbus_.arm_switch())) {
+            state_ = kDisarmed;
+            Serial.println("System is disarmed");
         }
     }
 
