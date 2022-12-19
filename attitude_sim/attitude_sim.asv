@@ -22,15 +22,12 @@ mesh = stlread('drone.stl');
 % Rotate model such that it is looking into positive y-direction
 mesh_points = ([cos(pi/2) -sin(pi/2) 0; sin(pi/2) cos(pi/2) 0; 0 0 1] * mesh.Points')';
 mesh_clist = mesh.ConnectivityList;
-target_mesh = trimesh(mesh_clist, mesh_points(:, 1), mesh_points(:, 2), mesh_points(:, 3), 'EdgeColor', 'blue');
-actual_mesh = trimesh(mesh_clist, mesh_points(:, 1), mesh_points(:, 2), mesh_points(:, 3), 'EdgeColor', 'red');
-diff_mesh = trimesh(mesh_clist, mesh_points(:, 1), mesh_points(:, 2), mesh_points(:, 3), 'EdgeColor', 'magenta');
+target_mesh = trimesh(mesh_clist, mesh_points(:, 1), mesh_points(:, 2), mesh_points(:, 3));
+actual_mesh = trimesh(mesh_clist, mesh_points(:, 1), mesh_points(:, 2), mesh_points(:, 3));
 
 % Set up quaternion variables
 target_quat = [1 0 0 0]; % initialize quaternion
-actual_quat = [1 0 0 0]; % initialize quaternion
-diff_quat = [1 0 0 0]; % initialize quaternion
-R = eye(3); % initialize rotation matrix
+target_R = eye(3); % initialize rotation matrix
 drawnow;
 
 while true % loop indefinitely
@@ -39,51 +36,34 @@ while true % loop indefinitely
     if (start == 'a')
         quat_data = read(s, 4, "single");
         if length(quat_data) == 4  % check if we received valid data
-            actual_quat = quat_data;  % update quaternion
+            quat = quat_data;  % update quaternion
         end
         
         % Convert quaternion to rotation matrix
-        R = quat2rotm(actual_quat);
+        R = quat2rotm(quat);
         
         % Rotate vertices using rotation matrix
         mesh_points_rotated = (R * mesh_points')';
         
         % Update triangulation object with rotated vertices
-        set(actual_mesh, 'Vertices', mesh_points_rotated)
+        set(mesh, 'Vertices', mesh_points_rotated)
         drawnow;
     end
 
-    if (start == 't')
+    if (start == 'a')
         quat_data = read(s, 4, "single");
         if length(quat_data) == 4  % check if we received valid data
-            target_quat = quat_data;  % update quaternion
+            quat = quat_data;  % update quaternion
         end
         
         % Convert quaternion to rotation matrix
-        R = quat2rotm(target_quat);
+        R = quat2rotm(quat);
         
         % Rotate vertices using rotation matrix
         mesh_points_rotated = (R * mesh_points')';
         
         % Update triangulation object with rotated vertices
-        set(target_mesh, 'Vertices', mesh_points_rotated)
-        drawnow;
-    end
-
-    if (start == 'd')
-        quat_data = read(s, 4, "single");
-        if length(quat_data) == 4  % check if we received valid data
-            diff_quat = quat_data;  % update quaternion
-        end
-        disp(diff_quat);
-        % Convert quaternion to rotation matrix
-        R = quat2rotm(diff_quat);
-        
-        % Rotate vertices using rotation matrix
-        mesh_points_rotated = (R * mesh_points')';
-        
-        % Update triangulation object with rotated vertices
-        set(diff_mesh, 'Vertices', mesh_points_rotated)
+        set(mesh, 'Vertices', mesh_points_rotated)
         drawnow;
     end
 end

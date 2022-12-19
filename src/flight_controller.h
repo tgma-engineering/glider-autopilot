@@ -10,6 +10,12 @@
 #include "least_squares.h"
 #include "sd_controller.h"
 
+#define DEBUG 1
+
+#if DEBUG
+#include "debug.h"
+#endif
+
 using namespace Eigen;
 
 class FlightController : public Controller {

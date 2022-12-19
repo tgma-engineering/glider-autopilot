@@ -186,6 +186,11 @@ int8_t FlightController::loop(uint32_t dt) {
 
     if (imu_.new_data_ready()) {
         Quaterniond attitude = imu_.attitude();
+
+#if DEBUG
+        Debug::send_quaternion(attitude, 'a');
+#endif
+
         VectorXd acceleration = imu_.acceleration();
         VectorXd ang_vel = imu_.ang_velocity();
         if (is_kf_setup_) {
@@ -346,25 +351,6 @@ void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recom
     }
 }
 
-void send_float(float f) {
-    char* pt = (char*) &f;
-    for (int i = 0; i < 4; ++i) {
-        Serial.write(*pt++);
-    }
-}
-
-void send_quat(const Quaterniond& q) {
-    float w = static_cast<float>(q.w());
-    float x = static_cast<float>(q.x());
-    float y = static_cast<float>(q.y());
-    float z = static_cast<float>(q.z());
-
-    send_float(w);
-    send_float(x);
-    send_float(y);
-    send_float(z);
-}
-
 void FlightController::update_target_attitude(uint32_t dt) {
     double d_sec = static_cast<double>(dt) / 1000000.;
 
@@ -393,11 +379,10 @@ void FlightController::update_target_attitude(uint32_t dt) {
     R = AngleAxisd(euler(0), Vector3d::UnitZ()) * AngleAxisd(euler(1), Vector3d::UnitX()) * AngleAxisd(euler(2), Vector3d::UnitY());
     target_attitude_ = Quaterniond(R);
 
-    // For debug porposes, sends attitude information to matlab script
-    Serial.write('s');
-    send_quat(target_attitude_);
-
+#if DEBUG
+    Debug::send_quaternion(target_attitude_, 't');
     delay(10);
+#endif
 }
 
 void FlightController::attitude_controls(double& roll, double& pitch, double& yaw) {
@@ -467,7 +452,15 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
 
     Quaterniond attitude = imu_.attitude();
     Quaterniond d_att = target_attitude_.conjugate() * attitude;
+    // Only positive quaternions allowed for linearization
+    if (d_att.w() < 0.)
+        d_att = Quaterniond(-d_att.w(), -d_att.x(), -d_att.y(), -d_att.z());
     Vector3d d_theta(2.*d_att.x(), 2.*d_att.y(), 2.*d_att.z());
+
+#if DEBUG
+    Debug::send_quaternion(d_att, 'd');
+    delay(10);
+#endif
 
     Vector3d sqrt_ctrl = -last_K * d_theta;
     
