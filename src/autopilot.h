@@ -38,6 +38,7 @@ private:
     SBusController sbus_;
     ServoController servos_;
     FlightController fc_;
+    bool fc_was_off_;
 };
 
 #endif  // AUTOPILOT_H_

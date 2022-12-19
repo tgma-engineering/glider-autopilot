@@ -4,6 +4,7 @@ Autopilot::Autopilot() {
     state_ = kIdle;
     mode_ = kManual;
     last_micros_ = 0;
+    fc_was_off_ = true;
 }
 
 void Autopilot::setup() {
@@ -101,7 +102,17 @@ void Autopilot::loop() {
     }
 
     servos_.loop(dt);
-    fc_.loop(dt);  // Loop only keeps track of attitude, no controls
+
+    // Only keep track of attitude and position if in actual flight
+    if (state_ == kArmed || mode_ != kManual) {
+        if (fc_was_off_) {
+            fc_.turn_on();  // Must be called if fc_.loop() is called for the first time in a while
+            fc_was_off_ = false;
+        }
+        fc_.loop(dt);  // Keeps track of attitude, no controls
+    } else {
+        fc_was_off_ = true;
+    }
 
     bool set_motor = (state_ == kArmed && !sbus_.failsave());  // False will turn motor off
     if (mode_ == kManual) {

@@ -4,6 +4,7 @@ GpsController::GpsController() {
     is_valid_ = false;
     is_ref_ = false;
     new_data_ready_ = false;
+    needs_flush_ = false;
 }
 
 int8_t GpsController::setup() {
@@ -12,6 +13,11 @@ int8_t GpsController::setup() {
 }
 
 int8_t GpsController::loop(uint32_t dt) {
+    if (needs_flush_) {
+        serial2_flush_();
+        needs_flush_ = false;
+    }
+
     while (Serial2.available() > 0) {
         if (gps_.encode(Serial2.read())) {
             if (gps_.satellites.isValid() && gps_.location.isValid() && gps_.altitude.isValid() && gps_.satellites.value() >= kMinSatellites) {
@@ -53,6 +59,10 @@ int8_t GpsController::loop(uint32_t dt) {
     }
 
     return 0;
+}
+
+void GpsController::flush_serial() {
+    needs_flush_ = true;
 }
 
 Vector3d GpsController::position() const {
@@ -132,4 +142,11 @@ Vector3d GpsController::cart_to_sph(const Vector3d& cart) const {
     }
 
     return Vector3d(latitude, longitude, altitude);
+}
+
+void GpsController::serial2_flush_() {
+    char temp;
+    while (Serial2.available() > 0) {
+        temp = Serial2.read();
+    }
 }

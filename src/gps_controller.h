@@ -23,6 +23,7 @@ public:
     GpsController();
     virtual int8_t setup();
     virtual int8_t loop(uint32_t dt);
+    void flush_serial();
     uint8_t satellites() const { return satellites_; }
     double latitude() const { return latitude_; }
     double longitude() const { return longitude_; }
@@ -62,6 +63,10 @@ private:
     uint32_t time_;  // HHMMSSCC
 
     bool new_data_ready_;
+
+    bool needs_flush_;
+
+    void serial2_flush_();
 };
 
 #endif  // GPS_CONTROLLER_H_

@@ -247,6 +247,10 @@ int8_t FlightController::loop(uint32_t dt) {
     return 0;
 }
 
+void FlightController::turn_on() {
+    gps_.flush_serial();  // Remove all the old data from GPS Serial
+}
+
 void FlightController::set_active() {
     if (!is_active_) {
         is_active_ = true;
@@ -299,7 +303,7 @@ void FlightController::controls(float& roll, float& pitch, float& yaw, float& fl
     last_motor_ = motor;
 }
 
-void FlightController::log_state() const {
+void FlightController::log_state() {
     // Write log entry
     uint16_t year;
     uint8_t month;
@@ -323,16 +327,21 @@ void FlightController::log_state() const {
     double w3 = utility_state(6);
     double cw = utility_state(7);  // Drag coefficient
     double cm = utility_state(8);  // Motor coefficient
+    Vector2d pitch_ls_sol = pitch_ls_.solve();
+    Vector2d roll_ls_sol = roll_ls_.solve();
+    Vector2d yaw_ls_sol = yaw_ls_.solve();
     uint8_t satellites = gps_.satellites();
     gps_.time(year, month, day, time);
     sd_.append(String(year) + "-" + String(month) + "-" + String(day) + "-" + String(time) + ":" +
-               String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                    // Position
-               String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +                    // Velocity
-               String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + ";" +  // Attitude
-               String(w1, 3) + ";" + String(w2, 3) + ";" + String(w3, 3) + ";" +                    // Wind Speed
-               String(cw, 5) + ";" +                                                                // Drag Coefficient
-               String(cm, 3) + ";" +                                                                // Motor coefficient
-               String(satellites) + "\n");                                                          // Number of active gps satellites
+               String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                                      // Position
+               String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +                                      // Velocity
+               String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + ";" +                    // Attitude
+               String(w1, 3) + ";" + String(w2, 3) + ";" + String(w3, 3) + ";" +                                      // Wind Speed
+               String(cw, 5) + ";" +                                                                                  // Drag Coefficient
+               String(cm, 3) + ";" +                                                                                  // Motor coefficient
+               String(pitch_ls_sol(0), 3) + ";" + String(roll_ls_sol(0), 3) + ";" + String(yaw_ls_sol(0), 3) + ";" +  // Control surface coefficients
+               String(pitch_ls_sol(1), 3) + ";" + String(roll_ls_sol(1), 3) + ";" + String(yaw_ls_sol(1), 3) + ";" +  // Angular drift
+               String(satellites) + "\n");                                                                            // Number of active gps satellites
 }
 
 void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recomp) {

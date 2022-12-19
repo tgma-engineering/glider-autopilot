@@ -64,6 +64,7 @@ public:
     FlightController();
     virtual int8_t setup();
     virtual int8_t loop(uint32_t dt);
+    void turn_on();
     void set_active();
     void set_inactive();
     void set_input(float roll, float pitch, float yaw, float flap, float motor);
@@ -87,6 +88,7 @@ private:
     ImuController imu_;
     Quaterniond target_attitude_;
     GpsController gps_;
+    bool gps_needs_flush_;
 
     KalmanFilter position_kf_;  // Estimates position, velocity and accelerometer bias
     KalmanFilter utility_kf_;   // Estimates windspeed, drag constant and motor constant
@@ -109,7 +111,7 @@ private:
 
     // Writes line of format:
     // YYYY-MM-DD-HHMMSSCC:x1;x2;x3;v1;v2;v3;w;x;y;z\n
-    void log_state() const;
+    void log_state();
 
     MatrixXd position_kf_noise_cov() const;
     MatrixXd position_kf_meas_cov() const;
