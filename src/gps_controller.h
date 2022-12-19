@@ -66,7 +66,7 @@ private:
 
     bool needs_flush_;
 
-    void serial2_flush_();
+    void serial2_flush();
 };
 
 #endif  // GPS_CONTROLLER_H_

@@ -56,7 +56,7 @@ public:
     static constexpr double kW0RollDefault = 0.;  // In Rad/s
     static constexpr double kW0YawDefault = 0.;  // In Rad/s
     static constexpr double kCPitchDefault = 0.9;  // In Rad/m  <- Those are really just wild guesses at this point.
-    static constexpr double kCRollDefault = 0.28;  // In Rad/m      Hopefully nobody will every have to rely on them for anything other than testing
+    static constexpr double kCRollDefault = 0.28;  // In Rad/m     Hopefully nobody will every have to rely on them for anything other than testing
     static constexpr double kCYawDefault = 0.03;  // In Rad/m
 
     static inline double sgn(double a) { return a >= 0. ? 1. : -1.; }
@@ -110,8 +110,9 @@ private:
     uint32_t last_log_elapsed_;  // Time in microseconds since the last Log written to SD card
 
     // Writes line of format:
-    // YYYY-MM-DD-HHMMSSCC:x1;x2;x3;v1;v2;v3;w;x;y;z\n
+    // YYYY-MM-DD-HHMMSSCC:x1;x2;x3;v1;v2;v3;w;x;y;z;w1;w2;w3;cw;cm;crp;crr;cry;w0p;w0r;w0y;sats;dt\n
     void log_state();
+    uint32_t ticks_since_log_;
 
     MatrixXd position_kf_noise_cov() const;
     MatrixXd position_kf_meas_cov() const;

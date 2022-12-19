@@ -267,6 +267,52 @@ class ParameterData:
         figure.tight_layout()
         figure.savefig(path + self.name + '.png', dpi = 500)
 
+class ControlSurfaceData:  # Control Surface parameters and angular drift
+    def __init__(self, name='control_surface'):
+        self.length = 6
+        self.name = name
+        self.crp = []  # Control Surface Constant for Pitch
+        self.crr = []  # Roll
+        self.cry = []  # Yaw
+        self.w0p = []  # Angular Drift for Pitch
+        self.w0r = []  # Roll
+        self.w0y = []  # Yaw
+
+    def read(self, data):
+        self.crp.append(float(data[0]))
+        self.crr.append(float(data[1]))
+        self.cry.append(float(data[2]))
+        self.w0p.append(float(data[3]))
+        self.w0r.append(float(data[4]))
+        self.w0y.append(float(data[5]))
+
+    def plot(self, time_list, path=''):
+        figure, axis = plt.subplots(3, 2, sharex='col', figsize=(12, 11))
+        figure.suptitle('Parameters', fontsize=12)
+        axis[0, 0].plot(time_list, self.crp, 'k-', lw=1)
+        axis[0, 0].set_title('Position', fontsize=10)
+        axis[0, 0].set_ylabel('Pitch / rad/m')
+        axis[0, 0].grid(True)
+        axis[1, 0].plot(time_list, self.crr, 'k-', lw=1)
+        axis[1, 0].set_ylabel('Roll / rad/m')
+        axis[1, 0].grid(True)
+        axis[2, 0].plot(time_list, self.cry, 'k-', lw=1)
+        axis[2, 0].set_ylabel('Yaw / rad/m')
+        axis[2, 0].grid(True)
+
+        axis[0, 1].plot(time_list, self.w0p, 'k-', lw=1)
+        axis[0, 1].set_title('Drift', fontsize=10)
+        axis[0, 1].set_ylabel('Pitch / rad/s')
+        axis[0, 1].grid(True)
+        axis[1, 1].plot(time_list, self.w0r, 'k-', lw=1)
+        axis[1, 1].set_ylabel('Roll / rad/s')
+        axis[1, 1].grid(True)
+        axis[2, 1].plot(time_list, self.w0y, 'k-', lw=1)
+        axis[2, 1].set_ylabel('Yaw / rad/s')
+        axis[2, 1].grid(True)
+        figure.tight_layout()
+        figure.savefig(path + self.name + '.png', dpi = 500)
+
 class SatelliteData:
     def __init__(self, name='satellites'):
         self.length = 1
@@ -285,8 +331,26 @@ class SatelliteData:
         figure.tight_layout()
         figure.savefig(path + self.name + '.png', dpi = 500)
 
+class TimeData:
+    def __init__(self, name='dt'):
+        self.length = 1
+        self.name = name
+        self.dt = []
+
+    def read(self, data):
+        self.dt.append(float(data[0]))
+
+    def plot(self, time_list, path=''):
+        figure, axis = plt.subplots(1, 1, sharex='col', figsize=(6, 3))
+        figure.suptitle('Average Tick Time', fontsize=12)
+        axis[0].plot(time_list, self.dt, 'k-', lw=1)
+        axis[0].set_ylabel('dt / mys')
+        axis[0].grid(True)
+        figure.tight_layout()
+        figure.savefig(path + self.name + '.png', dpi = 500)
+
 # Specify what data the log consists of per line
-data_blocks = (TranslationData(), AttitudeData(), WindData(), ParameterData(), SatelliteData())
+data_blocks = (TranslationData(), AttitudeData(), WindData(), ParameterData(), ControlSurfaceData(), SatelliteData(), TimeData())
 
 time_list = []
 

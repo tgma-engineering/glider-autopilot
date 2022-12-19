@@ -14,7 +14,7 @@ int8_t GpsController::setup() {
 
 int8_t GpsController::loop(uint32_t dt) {
     if (needs_flush_) {
-        serial2_flush_();
+        serial2_flush();
         needs_flush_ = false;
     }
 
@@ -144,8 +144,8 @@ Vector3d GpsController::cart_to_sph(const Vector3d& cart) const {
     return Vector3d(latitude, longitude, altitude);
 }
 
-void GpsController::serial2_flush_() {
-    char temp;
+void GpsController::serial2_flush() {
+    int8_t temp;
     while (Serial2.available() > 0) {
         temp = Serial2.read();
     }

@@ -1,7 +1,8 @@
 #include "debug.h"
 
+// Split float into 4 bytes using pointer arithmetic and send them
 void Debug::send_float(float f) {
-    char* pt = (char*) &f;
+    int8_t* pt = reinterpret_cast<int8_t*>(&f);
     for (int i = 0; i < 4; ++i) {
         Serial.write(*pt++);
     }

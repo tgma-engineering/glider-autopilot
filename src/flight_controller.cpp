@@ -101,6 +101,8 @@ FlightController::FlightController() : position_kf_(
     last_flap_ = 0.f;
     last_motor_ = 0.f;
 
+    ticks_since_log_ = 0;
+
     is_kf_setup_ = false;
     kf_last_propagate_ = 0;
     last_log_elapsed_ = 0;
@@ -235,13 +237,17 @@ int8_t FlightController::loop(uint32_t dt) {
     }
 
     // Logging stuff
-    if (last_log_elapsed_ <= kLogTime) {
-        last_log_elapsed_ += dt;
-    } else {
-        if (is_kf_setup_)  {  // Only log data if valid information is being computed
+    if (is_kf_setup_) {  // Only log data if valid information is being computed
+        ++ticks_since_log_;
+        if (last_log_elapsed_ <= kLogTime) {
+            last_log_elapsed_ += dt;
+        } else {
             last_log_elapsed_ -= kLogTime;
             log_state();
+            ticks_since_log_ = 0;
         }
+    } else {
+        ticks_since_log_ = 0;
     }
 
     return 0;
@@ -331,6 +337,7 @@ void FlightController::log_state() {
     Vector2d roll_ls_sol = roll_ls_.solve();
     Vector2d yaw_ls_sol = yaw_ls_.solve();
     uint8_t satellites = gps_.satellites();
+    double avg_tick_micros = kLogTime / ticks_since_log_;
     gps_.time(year, month, day, time);
     sd_.append(String(year) + "-" + String(month) + "-" + String(day) + "-" + String(time) + ":" +
                String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                                      // Position
@@ -340,8 +347,9 @@ void FlightController::log_state() {
                String(cw, 5) + ";" +                                                                                  // Drag Coefficient
                String(cm, 3) + ";" +                                                                                  // Motor coefficient
                String(pitch_ls_sol(0), 3) + ";" + String(roll_ls_sol(0), 3) + ";" + String(yaw_ls_sol(0), 3) + ";" +  // Control surface coefficients
-               String(pitch_ls_sol(1), 3) + ";" + String(roll_ls_sol(1), 3) + ";" + String(yaw_ls_sol(1), 3) + ";" +  // Angular drift
-               String(satellites) + "\n");                                                                            // Number of active gps satellites
+               String(pitch_ls_sol(1), 5) + ";" + String(roll_ls_sol(1), 5) + ";" + String(yaw_ls_sol(1), 5) + ";" +  // Angular drift
+               String(satellites) + ";" +                                                                             // Number of active gps satellites
+               String(avg_tick_micros) + "\n");                                                                       // Average duration of tick in microseconds
 }
 
 void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recomp) {
