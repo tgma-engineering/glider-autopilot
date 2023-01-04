@@ -1,3 +1,7 @@
+// TODO: Change everything from least-squares to using the extended utility kf instead
+//       Also change utility kf's update and measurement calls
+//       Remove least-squares stuff
+
 #ifndef FLIGHT_CONTROLLER_H_
 #define FLIGHT_CONTROLLER_H_
 
@@ -35,6 +39,8 @@ public:
     static constexpr double kWindNoiseStdDev = 0.08;  // Guessing max change is 5m/s in 20s -> stddev of 0.08m/s
     static constexpr double kDragNoiseStdDev = 0.0001;  // This is constant in reality. Just some really small stddev to make sure the kf keeps estimating it
     static constexpr double kMotorNoiseStdDev = 0.0001;  // Same here
+    static constexpr double kCtrlSurfParamStdDev = 0.0001;  // Same
+    static constexpr double kAngVelDriftStdDev = 0.0001;  // Same for now
     //static constexpr double kDragConstInit = 0.02;  // Drag Acceleration = v^2 * rho*A*Cd/2/m = v^2 * DragConst
     static constexpr double kDragConstInit = 0.14;  // Experimental data
     //static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
@@ -60,6 +66,8 @@ public:
     static constexpr double kCYawDefault = 0.03;  // In Rad/m
 
     static inline double sgn(double a) { return a >= 0. ? 1. : -1.; }
+    static inline double sgn_sqrt(double a) { return a >= 0. ? sqrt(a) : -sqrt(-a); }
+    static inline double sgn_sq(double a) { return a >= 0. ? sq(a) : -sq(a); }
 
     FlightController();
     virtual int8_t setup();
@@ -90,8 +98,8 @@ private:
     GpsController gps_;
     bool gps_needs_flush_;
 
-    KalmanFilter position_kf_;  // Estimates position, velocity and accelerometer bias
-    KalmanFilter utility_kf_;   // Estimates windspeed, drag constant and motor constant
+    KalmanFilter position_kf_;   // Estimates position, velocity and accelerometer bias
+    KalmanFilter utility_kf_;    // Estimates windspeed, drag constant and motor constant, control surface constants
     bool is_kf_setup_;
     uint32_t kf_last_propagate_;
 

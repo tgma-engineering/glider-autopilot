@@ -37,8 +37,8 @@ FlightController::FlightController() : position_kf_(
     position_kf_meas_cov()
 ), utility_kf_(
     [](const VectorXd& x, const VectorXd& u) -> VectorXd {  // State Model: f(x, u)
-        // x = x1, x2, x3, v_rel, v_wind1, v_wind2, v_wind3, drag_const, motor_const
-        // u = rot.w, rot.x, rot.y, rot.z, motor_input
+        // x = x1, x2, x3, v_rel, v_wind1, v_wind2, v_wind3, drag_const, motor_const, c_pitch, c_roll, c_yaw, w0_pitch, w0_roll, w0_yaw
+        // u = rot.w, rot.x, rot.y, rot.z, motor_input, pitch_input, roll_input, yaw_input
         Quaterniond rot(u(0), u(1), u(2), u(3));  // Local-to-Global Quaterion
         MatrixXd R = rot.toRotationMatrix();
         double v_rel = x(3);
@@ -47,18 +47,21 @@ FlightController::FlightController() : position_kf_(
 
         VectorXd v = v_rel * (R * ex) + x(seq(4, 6));
         double a_rel = ex.dot(R.transpose() * g) - sq(v_rel) * x(7) + u(4) * x(8);
-        VectorXd x_dot(9);
-        x_dot << v, a_rel, VectorXd::Zero(5);
+        VectorXd x_dot(15);
+        x_dot << v, a_rel, VectorXd::Zero(11);
         return x_dot;
     },
-    [](const VectorXd& x, const VectorXd& u) -> VectorXd {  // Measurement Model: h(x)
+    [](const VectorXd& x, const VectorXd& u) -> VectorXd {  // Measurement Model: h(x, u)
+        // h = x1, x2, x3, v1, v2, v3, ang_vel_pitch, ang_vel_roll, ang_vel_yaw
         Quaterniond rot(u(0), u(1), u(2), u(3));  // Local-to-Global Quaterion
         MatrixXd R = rot.toRotationMatrix();
         VectorXd ex = Vector3d(1, 0, 0);
 
         VectorXd v = x(3) * (R * ex) + x(seq(4, 6));
-        VectorXd measurement(6);
-        measurement << x.head(3), v;
+        // w = v_rel * sqrt(input) * c + w0
+        VectorXd w = x(3) * u(seq(5, 7)).unaryExpr(function<double(double)>(sgn_sqrt)).cwiseProduct(x(seq(9, 11))) + x(seq(12, 14));
+        VectorXd measurement(9);
+        measurement << x.head(3), v, w;
         return measurement;
     },
     [](const VectorXd& x, const VectorXd& u) -> MatrixXd {  // State Model Jacobian: df/dx
@@ -66,7 +69,7 @@ FlightController::FlightController() : position_kf_(
         MatrixXd R = rot.toRotationMatrix();
         VectorXd ex = Vector3d(1, 0, 0);
 
-        MatrixXd state_jacobian = MatrixXd::Zero(9, 9);
+        MatrixXd state_jacobian = MatrixXd::Zero(15, 15);
         state_jacobian(seq(0, 2), 3) = R * ex;
         state_jacobian(seq(0, 2), seq(4, 6)) = MatrixXd::Identity(3, 3);
         state_jacobian(3, 3) = -2. * x(3) * x(7);
@@ -79,14 +82,17 @@ FlightController::FlightController() : position_kf_(
         MatrixXd R = rot.toRotationMatrix();
         VectorXd ex = Vector3d(1, 0, 0);
 
-        MatrixXd measure_jacobian = MatrixXd::Zero(6, 9);
+        MatrixXd measure_jacobian = MatrixXd::Zero(9, 15);
         measure_jacobian(seq(0, 2), seq(0, 2)) = MatrixXd::Identity(3, 3);
         measure_jacobian(seq(3, 5), 3) = R * ex;
         measure_jacobian(seq(3, 5), seq(4, 6)) = MatrixXd::Identity(3, 3);
+        measure_jacobian(seq(6, 8), 3) = u(seq(5, 7)).unaryExpr(function<double(double)>(sgn_sqrt)).cwiseProduct(x(seq(9, 11)));
+        measure_jacobian(seq(6, 8), seq(9, 11)) = x(3) * u(seq(5, 7)).unaryExpr(function<double(double)>(sgn_sqrt)).asDiagonal();
+        measure_jacobian(seq(6, 8), seq(12, 14)) = MatrixXd::Identity(3, 3);
         return measure_jacobian;
     },
     utility_kf_noise_cov(),
-    MatrixXd::Identity(6, 6)  // Dummy. Measure Covariance will be set before every kf update
+    MatrixXd::Identity(9, 9)  // Dummy. Measure Covariance will be set before every kf update
 ) {
     is_active_ = false;
     input_roll_ = 0.f;
@@ -126,12 +132,14 @@ MatrixXd FlightController::position_kf_meas_cov() const {
 }
 
 MatrixXd FlightController::utility_kf_noise_cov() const {
-    MatrixXd noise_cov = MatrixXd::Zero(9, 9);
+    MatrixXd noise_cov = MatrixXd::Zero(15, 15);
     noise_cov(seq(0, 2), seq(0, 2)) = MatrixXd::Identity(3, 3) * sq(kPosNoiseStdDev);
     noise_cov(3, 3) = sq(kVelNoiseStdDev);
     noise_cov(seq(4, 6), seq(4, 6)) = MatrixXd::Identity(3, 3) * sq(kWindNoiseStdDev);
     noise_cov(7, 7) = sq(kDragNoiseStdDev);
     noise_cov(8, 8) = sq(kMotorNoiseStdDev);
+    noise_cov(seq(9, 11), seq(9, 11)) = MatrixXd::Identity(3, 3) * sq(kCtrlSurfParamStdDev);
+    noise_cov(seq(12, 14), seq(12, 14)) = MatrixXd::Identity(3, 3) * sq(kAngVelDriftStdDev);
     return noise_cov;
 }
 
