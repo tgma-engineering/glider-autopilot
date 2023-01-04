@@ -224,7 +224,7 @@ int8_t FlightController::loop(uint32_t dt) {
             manage_least_squares(yaw_ls_, yaw_ls_last_recomp_);
         }
     }
-
+    
     if (gps_.new_data_ready()) {
         VectorXd position = gps_.position();
         if (is_kf_setup_) {
@@ -235,7 +235,7 @@ int8_t FlightController::loop(uint32_t dt) {
             position_kf_.update(position, control);
         }
     }
-
+    
     // Logging stuff
     if (is_kf_setup_) {  // Only log data if valid information is being computed
         ++ticks_since_log_;
@@ -249,7 +249,7 @@ int8_t FlightController::loop(uint32_t dt) {
     } else {
         ticks_since_log_ = 0;
     }
-
+    
     return 0;
 }
 
@@ -454,7 +454,7 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
         MatrixXd R = Vector3d(0.1, 0.1, 0.1).asDiagonal();
 
         MatrixXd K = lqr(A, B, Q, R);
-        
+
         last_K = K;
         last_v_rel = v_rel;
         last_pitch_ls_sol = pitch_ls_sol;

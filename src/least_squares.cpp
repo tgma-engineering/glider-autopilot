@@ -86,7 +86,14 @@ VectorXd LeastSquares::solve() {
         if (is_last_x_valid_) {
             return x_;
         } else {
-            VectorXd x_ = P_.transpose() * R_.triangularView<Upper>().solve(Q_.transpose() * b_);
+            MatrixXd R_econ = R_(seq(0, R_.cols()-1), seq(0, R_.cols()-1));
+            VectorXd b_sol = Q_.transpose() * b_;
+            VectorXd b_sol_econ = b_sol(seq(0, R_.cols()-1));
+
+            Eigen::FullPivLU<MatrixXd> lu_solver(R_econ);
+            VectorXd x_perm = lu_solver.solve(b_sol_econ);
+
+            VectorXd x_ = P_.transpose() * x_perm;
             is_last_x_valid_ = true;
             return x_;
         }
@@ -140,13 +147,11 @@ void LeastSquares::add_row(const VectorXd& a, double b) {
 
         A_ = new_A;
         b_ = new_b;
-
         // If A didn't have full column rank before, check if it has now
         if (!is_A_full_rank_) {
             is_A_full_rank_ = recompute_qr();
             return;
         }
-
         // Compute Q and R
         MatrixXd new_R(A_r+1, A_c);
         new_R(0, seq(0, A_c-1)) = a.transpose() * P_;
@@ -154,9 +159,8 @@ void LeastSquares::add_row(const VectorXd& a, double b) {
         // R is upper Hessenberg right now
         MatrixXd new_Q = MatrixXd::Identity(A_r+1, A_r+1);
         new_Q(seq(1, A_r), seq(1, A_r)) = Q_;
-
         for (int i = 0; i < A_c; ++i) {
-            // Generate Givens rotation to remove one blow-diagonal element of new_R
+            // Generate Givens rotation to remove one below-diagonal element of new_R
             Matrix2d J = givens(new_R(i, i), new_R(i+1, i));
 
             // Apply Givens rotation to new_R from the left: new_R = J.T * new_R
@@ -165,7 +169,6 @@ void LeastSquares::add_row(const VectorXd& a, double b) {
             // Apply Givens rotation to new_Q from the right: new_Q = new_Q * J
             new_Q(seq(0, A_r), seq(i, i+1)) = new_Q(seq(0, A_r), seq(i, i+1)) * J;
         }
-
         Q_ = new_Q;
         R_ = new_R;
         // Permutation matrix P stays unchanged

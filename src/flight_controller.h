@@ -10,7 +10,7 @@
 #include "least_squares.h"
 #include "sd_controller.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG
 #include "debug.h"
@@ -39,8 +39,8 @@ public:
     static constexpr double kDragConstInit = 0.14;  // Experimental data
     //static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
     static constexpr double kMotorConstInit = 1.3;  // Experimental data
-    static const int32_t kMaxLsRows = 1000;  // Maximum and Minimum number of rows in least squares matrix
-    static const int32_t kMinLsRows = 100;
+    static const int32_t kMaxLsRows = 50;  // Maximum and Minimum number of rows in least squares matrix
+    static const int32_t kMinLsRows = 10;
     static constexpr double kLsNewRowRatio = 0.2;  // Allowed percentage of recursively added rows before QR is recomputed from scratch
     static const String kLogName;
     static const uint32_t kLogTime = 50000;  // In microseconds
