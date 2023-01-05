@@ -180,14 +180,14 @@ int8_t FlightController::loop(uint32_t dt) {
         position_kf_.setup(position_x0, position_P0);
 
         VectorXd utility_x0(9);
-        double cw_init = kDragConstInit;
-        double cm_init = kMotorConstInit;
-        utility_x0 << pos, VectorXd::Zero(4), cw_init, cm_init;
+        utility_x0 << pos, VectorXd::Zero(4), kDragConstInit, kMotorConstInit, kCPitchDefault, kCRollDefault, kCYawDefault, kW0PitchDefault, kW0RollDefault, kW0YawDefault;
         MatrixXd utility_P0 = VectorXd{{sq(kGpsXStdDev), sq(kGpsYStdDev), sq(kGpsZStdDev),
                                         100.,
                                         25., 25., 25.,
                                         0.0004,
-                                        10.}}.asDiagonal();
+                                        10.,
+                                        sq(kCPitchDefault/3.), sq(kCRollDefault/3.), sq(kCYawDefault/3.),
+                                        sq(kW0PitchDefault/3.), sq(kW0RollDefault/3.), sq(kW0YawDefault/3.)}}.asDiagonal();
         utility_kf_.setup(utility_x0, utility_P0);
 
         is_kf_setup_ = true;
@@ -211,25 +211,19 @@ int8_t FlightController::loop(uint32_t dt) {
             kf_last_propagate_ = 0;
 
             // Propagate and update utility_kf every imu step. If mcu load is too high, reduce frequency
-            double motor_input = last_motor_;
             VectorXd utility_control(5);
-            utility_control << attitude.w(), attitude.x(), attitude.y(), attitude.z(), motor_input;
+            utility_control << attitude.w(), attitude.x(), attitude.y(), attitude.z(), last_motor_, last_pitch_, last_roll_, last_yaw_;
             utility_kf_.propagate(utility_control, delta_second);
             // position_kf is measurement input to utility_kf
-            MatrixXd utility_measure_cov = position_kf_.error_cov()(seqN(0, 6), seqN(0, 6));
+            MatrixXd utility_measure_cov(9, 9);
+            utility_measure_cov(seq(0, 5), seq(0, 5)) = position_kf_.error_cov()(seq(0, 5), seq(0, 5));
+            utility_measure_cov(seq(6, 8), seq(6, 8)) = MatrixXd::Identity(3, 3) * kGyroNoiseStdDev;
             utility_kf_.set_measure_cov(utility_measure_cov);
             // Update
-            VectorXd utility_measurement = position_kf_.state_vector().head(6);  // x1, x2, x3, v1, v2, v3
+            VectorXd utility_measurement(9);
+            utility_measurement(seq(0, 5)) = position_kf_.state_vector().head(6);  // x1, x2, x3, v1, v2, v3
+            utility_measurement(seq(6, 8)) = ang_vel;
             utility_kf_.update(utility_measurement, utility_control);
-
-            // Use windspeed data of utility_kf to estimate control surface effect using least squares
-            double v_rel = utility_kf_.state_vector()(3);
-            roll_ls_.add_row(Vector2d(v_rel * sgn(input_roll_) * sqrt(abs(input_roll_)), 1.), ang_vel(1));
-            manage_least_squares(roll_ls_, roll_ls_last_recomp_);
-            pitch_ls_.add_row(Vector2d(v_rel * sgn(input_pitch_) * sqrt(abs(input_pitch_)), 1.), ang_vel(0));
-            manage_least_squares(pitch_ls_, pitch_ls_last_recomp_);
-            yaw_ls_.add_row(Vector2d(v_rel * sgn(input_yaw_) * sqrt(abs(input_yaw_)), 1.), ang_vel(2));
-            manage_least_squares(yaw_ls_, yaw_ls_last_recomp_);
         }
     }
     
@@ -341,39 +335,22 @@ void FlightController::log_state() {
     double w3 = utility_state(6);
     double cw = utility_state(7);  // Drag coefficient
     double cm = utility_state(8);  // Motor coefficient
-    Vector2d pitch_ls_sol = pitch_ls_.solve();
-    Vector2d roll_ls_sol = roll_ls_.solve();
-    Vector2d yaw_ls_sol = yaw_ls_.solve();
+    VectorXd ctrl_surf_params = utility_state(seq(9, 11));
+    VectorXd ang_vel_drift_params = utility_state(seq(12, 14));
     uint8_t satellites = gps_.satellites();
     double avg_tick_micros = kLogTime / ticks_since_log_;
     gps_.time(year, month, day, time);
     sd_.append(String(year) + "-" + String(month) + "-" + String(day) + "-" + String(time) + ":" +
-               String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                                      // Position
-               String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +                                      // Velocity
-               String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + ";" +                    // Attitude
-               String(w1, 3) + ";" + String(w2, 3) + ";" + String(w3, 3) + ";" +                                      // Wind Speed
-               String(cw, 5) + ";" +                                                                                  // Drag Coefficient
-               String(cm, 3) + ";" +                                                                                  // Motor coefficient
-               String(pitch_ls_sol(0), 3) + ";" + String(roll_ls_sol(0), 3) + ";" + String(yaw_ls_sol(0), 3) + ";" +  // Control surface coefficients
-               String(pitch_ls_sol(1), 5) + ";" + String(roll_ls_sol(1), 5) + ";" + String(yaw_ls_sol(1), 5) + ";" +  // Angular drift
-               String(satellites) + ";" +                                                                             // Number of active gps satellites
-               String(avg_tick_micros) + "\n");                                                                       // Average duration of tick in microseconds
-}
-
-void FlightController::manage_least_squares(LeastSquares& ls, int& ls_last_recomp) {
-    if (ls.rows() <= kMinLsRows) {
-        if (ls.rows() == kMinLsRows) {
-            ls.recompute_qr();
-            ls_last_recomp = ls.rows();
-        }
-    } else if (ls.rows() >= kMaxLsRows) {  // Too many new rows
-        // -1 shouldn't be necessary but prevents possible off-by-one errors
-        ls.remove_n_rows(static_cast<int>(static_cast<double>(kMaxLsRows) * kLsNewRowRatio) - 1);
-        ls_last_recomp = ls.rows();
-    } else if (1. - static_cast<double>(ls_last_recomp) / static_cast<double>(ls.rows()) > kLsNewRowRatio) {  // Too many new rows
-        ls.recompute_qr();
-        ls_last_recomp = ls.rows();
-    }
+               String(x1, 3) + ";" + String(x2, 3) + ";" + String(x3, 3) + ";" +                                                                 // Position
+               String(v1, 3) + ";" + String(v2, 3) + ";" + String(v3, 3) + ";" +                                                                 // Velocity
+               String(w, 3) + ";" + String(x, 3) + ";" + String(y, 3) + ";" + String(z, 3) + ";" +                                               // Attitude
+               String(w1, 3) + ";" + String(w2, 3) + ";" + String(w3, 3) + ";" +                                                                 // Wind Speed
+               String(cw, 5) + ";" +                                                                                                             // Drag Coefficient
+               String(cm, 3) + ";" +                                                                                                             // Motor coefficient
+               String(ctrl_surf_params(0), 3) + ";" + String(ctrl_surf_params(1), 3) + ";" + String(ctrl_surf_params(2), 3) + ";" +              // Control surface coefficients
+               String(ang_vel_drift_params(0), 5) + ";" + String(ang_vel_drift_params(1), 5) + ";" + String(ang_vel_drift_params(2), 5) + ";" +  // Angular drift
+               String(satellites) + ";" +                                                                                                        // Number of active gps satellites
+               String(avg_tick_micros) + "\n");                                                                                                  // Average duration of tick in microseconds
 }
 
 void FlightController::update_target_attitude(uint32_t dt) {
@@ -415,49 +392,38 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
 
     static bool is_K_set = false;
     static double last_v_rel = 0;
-    static Vector2d last_pitch_ls_sol(0, 0);
-    static Vector2d last_roll_ls_sol(0, 0);
-    static Vector2d last_yaw_ls_sol(0, 0);
+    static Vector3d last_ctrl_surf_params(0, 0, 0);
+    static Vector3d last_ang_drift_params(0, 0, 0);
     static MatrixXd last_K = MatrixXd::Zero(3, 3);
-    static double last_ctrl_0_pitch = 0;
-    static double last_ctrl_0_roll = 0;
-    static double last_ctrl_0_yaw = 0;
+    static Vector3d last_ctrl_0s(0, 0, 0);
 
     double v_rel;
-    Vector2d pitch_ls_sol;
-    Vector2d roll_ls_sol;
-    Vector2d yaw_ls_sol;
+    Vector3d ctrl_surf_params;
+    Vector3d ang_drift_params;
     if (is_kf_setup_) {
         v_rel = utility_kf_.state_vector()(3);
-        // Add steady state roll, pitch and yaw to compensate for angular drift w0
-        pitch_ls_sol = pitch_ls_.solve();
-        roll_ls_sol = roll_ls_.solve();
-        yaw_ls_sol = yaw_ls_.solve();
-    } else {  // Use hard coded default values if there is not estimator data available
+        ctrl_surf_params = utility_kf_.state_vector()(seq(9, 11));
+        ang_drift_params = utility_kf_.state_vector()(seq(12, 14));
+    } else {  // Use hard coded default values if there is no estimator data available
         v_rel = kVRelDefault;
-        pitch_ls_sol = Vector2d(kCPitchDefault, kW0PitchDefault);
-        roll_ls_sol = Vector2d(kCRollDefault, kW0RollDefault);
-        yaw_ls_sol = Vector2d(kCYawDefault, kW0YawDefault);
+        ctrl_surf_params = Vector3d(kCPitchDefault, kCRollDefault, kCYawDefault);
+        ang_drift_params = Vector3d(kW0PitchDefault, kW0RollDefault, kW0YawDefault);
     }
 
     // The following block doesn't have to be recomputed at every step (Just save K and the three ctrl_0s)
     bool too_much_param_change = last_v_rel == 0. || abs(v_rel - last_v_rel)/last_v_rel > recomp_threshold ||
-                                 last_pitch_ls_sol(0) == 0. || abs(pitch_ls_sol(0) - last_pitch_ls_sol(0))/last_pitch_ls_sol(0) > recomp_threshold ||
-                                 last_roll_ls_sol(0) == 0. || abs(roll_ls_sol(0) - last_roll_ls_sol(0))/last_roll_ls_sol(0) > recomp_threshold ||
-                                 last_yaw_ls_sol(0) == 0. || abs(yaw_ls_sol(0) - last_yaw_ls_sol(0))/last_yaw_ls_sol(0) > recomp_threshold;
+                                 last_ctrl_surf_params(0) == 0. || abs(ctrl_surf_params(0) - last_ctrl_surf_params(0))/last_ctrl_surf_params(0) > recomp_threshold ||
+                                 last_ctrl_surf_params(1) == 0. || abs(ctrl_surf_params(1) - last_ctrl_surf_params(1))/last_ctrl_surf_params(1) > recomp_threshold ||
+                                 last_ctrl_surf_params(2) == 0. || abs(ctrl_surf_params(2) - last_ctrl_surf_params(2))/last_ctrl_surf_params(2) > recomp_threshold;
                                  // The change in w0 is not taken into account because it will produce big relative changes without necessarily influencing controller behaviour
     if (!is_K_set || too_much_param_change) {
         // sqrt(r_0) = -w_0 / (c * v_rel)
-        double sqrt_ctrl_0_pitch = -pitch_ls_sol(1) / (pitch_ls_sol(0) * v_rel);
-        double sqrt_ctrl_0_roll = -roll_ls_sol(1) / (roll_ls_sol(0) * v_rel);
-        double sqrt_ctrl_0_yaw = -yaw_ls_sol(1) / (yaw_ls_sol(0) * v_rel);
-        double ctrl_0_pitch = sgn(sqrt_ctrl_0_pitch) * sq(sqrt_ctrl_0_pitch);
-        double ctrl_0_roll = sgn(sqrt_ctrl_0_roll) * sq(sqrt_ctrl_0_roll);
-        double ctrl_0_yaw = sgn(sqrt_ctrl_0_yaw) * sq(sqrt_ctrl_0_yaw);
+        Vector3d sqrt_ctrl_0s = -ang_drift_params.cwiseQuotient(ctrl_surf_params * v_rel);
+        Vector3d ctrl_0s = sqrt_ctrl_0s.unaryExpr(function<double(double)>(sgn_sq));
 
         // LQR
         MatrixXd A = MatrixXd::Zero(3, 3);
-        MatrixXd B = (Vector3d(pitch_ls_sol(0), roll_ls_sol(0), yaw_ls_sol(0)) * v_rel).asDiagonal();
+        MatrixXd B = (ctrl_surf_params * v_rel).asDiagonal();
         MatrixXd Q = Vector3d(2., 2., 2.).asDiagonal();  // LQR Controller tuning in here for now
         MatrixXd R = Vector3d(0.1, 0.1, 0.1).asDiagonal();
 
@@ -465,12 +431,9 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
 
         last_K = K;
         last_v_rel = v_rel;
-        last_pitch_ls_sol = pitch_ls_sol;
-        last_roll_ls_sol = roll_ls_sol;
-        last_yaw_ls_sol = yaw_ls_sol;
-        last_ctrl_0_pitch = ctrl_0_pitch;
-        last_ctrl_0_roll = ctrl_0_roll;
-        last_ctrl_0_yaw = ctrl_0_yaw;
+        last_ctrl_surf_params = ctrl_surf_params;
+        last_ang_drift_params = ang_drift_params;
+        last_ctrl_0s = ctrl_0s;
 
         is_K_set = true;
     }  // Block that doesn't have to be recomputed every step ends here
@@ -489,9 +452,9 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
 
     Vector3d sqrt_ctrl = -last_K * d_theta;
     
-    pitch = last_ctrl_0_pitch + sgn(sqrt_ctrl(0)) * sq(sqrt_ctrl(0));
-    roll = last_ctrl_0_roll + sgn(sqrt_ctrl(1)) * sq(sqrt_ctrl(1));
-    yaw = last_ctrl_0_yaw + sgn(sqrt_ctrl(2)) * sq(sqrt_ctrl(2));
+    pitch = last_ctrl_0s(0) + sgn(sqrt_ctrl(0)) * sq(sqrt_ctrl(0));
+    roll = last_ctrl_0s(1) + sgn(sqrt_ctrl(1)) * sq(sqrt_ctrl(1));
+    yaw = last_ctrl_0s(2) + sgn(sqrt_ctrl(2)) * sq(sqrt_ctrl(2));
 }
 
 MatrixXd FlightController::lqr(const MatrixXd& A, const MatrixXd& B, const MatrixXd& Q, const MatrixXd& R) {
