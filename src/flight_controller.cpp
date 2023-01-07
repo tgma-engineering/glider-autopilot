@@ -112,6 +112,9 @@ FlightController::FlightController() : position_kf_(
     is_kf_setup_ = false;
     kf_last_propagate_ = 0;
     last_log_elapsed_ = 0;
+
+    utility_kf_last_state_ = VectorXd::Zero(1);
+    utility_kf_last_cov_ = MatrixXd::Zero(1, 1);
 }
 
 MatrixXd FlightController::position_kf_noise_cov() const {
@@ -141,6 +144,30 @@ MatrixXd FlightController::utility_kf_noise_cov() const {
     noise_cov(seq(9, 11), seq(9, 11)) = MatrixXd::Identity(3, 3) * sq(kCtrlSurfParamStdDev);
     noise_cov(seq(12, 14), seq(12, 14)) = MatrixXd::Identity(3, 3) * sq(kAngVelDriftStdDev);
     return noise_cov;
+}
+
+void FlightController::init_utility_kf_(VectorXd pos) {
+    VectorXd utility_x0(15);
+    double dragConstInit = kDragConstInit;  // Eigen doesn't work with constants directly apparently
+    double motorConstInit = kMotorConstInit;
+    double cPitchDefault = kCPitchDefault;
+    double cRollDefault = kCRollDefault;
+    double cYawDefault = kCYawDefault;
+    double w0PitchDefault = kW0PitchDefault;
+    double w0RollDefault = kW0RollDefault;
+    double w0YawDefault = kW0YawDefault;
+    utility_x0 << pos, VectorXd::Zero(4), dragConstInit, motorConstInit, cPitchDefault, cRollDefault, cYawDefault, w0PitchDefault, w0RollDefault, w0YawDefault;
+    MatrixXd utility_P0 = VectorXd{{sq(kGpsXStdDev), sq(kGpsYStdDev), sq(kGpsZStdDev),
+                                    100.,
+                                    25., 25., 25.,
+                                    0.0004,
+                                    10.,
+                                    sq(kCPitchDefault/3.), sq(kCRollDefault/3.), sq(kCYawDefault/3.),
+                                    sq(kW0PitchDefault/3.), sq(kW0RollDefault/3.), sq(kW0YawDefault/3.)}}.asDiagonal();
+    utility_kf_.setup(utility_x0, utility_P0);
+
+    utility_kf_last_state_ = utility_x0;
+    utility_kf_last_cov_ = utility_P0;
 }
 
 int8_t FlightController::setup() {
@@ -179,27 +206,14 @@ int8_t FlightController::loop(uint32_t dt) {
                                          10.*kAccBiasNoiseStdDev, 10.*kAccBiasNoiseStdDev, 10.*kAccBiasNoiseStdDev}}.asDiagonal();
         position_kf_.setup(position_x0, position_P0);
 
-        VectorXd utility_x0(9);
-        utility_x0 << pos, VectorXd::Zero(4), kDragConstInit, kMotorConstInit, kCPitchDefault, kCRollDefault, kCYawDefault, kW0PitchDefault, kW0RollDefault, kW0YawDefault;
-        MatrixXd utility_P0 = VectorXd{{sq(kGpsXStdDev), sq(kGpsYStdDev), sq(kGpsZStdDev),
-                                        100.,
-                                        25., 25., 25.,
-                                        0.0004,
-                                        10.,
-                                        sq(kCPitchDefault/3.), sq(kCRollDefault/3.), sq(kCYawDefault/3.),
-                                        sq(kW0PitchDefault/3.), sq(kW0RollDefault/3.), sq(kW0YawDefault/3.)}}.asDiagonal();
-        utility_kf_.setup(utility_x0, utility_P0);
-
+        init_utility_kf_(pos);
+        
         is_kf_setup_ = true;
         kf_last_propagate_ = 0;
     }
 
     if (imu_.new_data_ready()) {
         Quaterniond attitude = imu_.attitude();
-
-#if DEBUG
-        Debug::send_quaternion(attitude, 'a');
-#endif
 
         VectorXd acceleration = imu_.acceleration();
         VectorXd ang_vel = imu_.ang_velocity();
@@ -211,19 +225,35 @@ int8_t FlightController::loop(uint32_t dt) {
             kf_last_propagate_ = 0;
 
             // Propagate and update utility_kf every imu step. If mcu load is too high, reduce frequency
-            VectorXd utility_control(5);
+            VectorXd utility_control(8);
             utility_control << attitude.w(), attitude.x(), attitude.y(), attitude.z(), last_motor_, last_pitch_, last_roll_, last_yaw_;
             utility_kf_.propagate(utility_control, delta_second);
             // position_kf is measurement input to utility_kf
             MatrixXd utility_measure_cov(9, 9);
             utility_measure_cov(seq(0, 5), seq(0, 5)) = position_kf_.error_cov()(seq(0, 5), seq(0, 5));
-            utility_measure_cov(seq(6, 8), seq(6, 8)) = MatrixXd::Identity(3, 3) * kGyroNoiseStdDev;
+            utility_measure_cov(seq(6, 8), seq(6, 8)) = MatrixXd::Identity(3, 3) * sq(kGyroNoiseStdDev);
             utility_kf_.set_measure_cov(utility_measure_cov);
             // Update
             VectorXd utility_measurement(9);
             utility_measurement(seq(0, 5)) = position_kf_.state_vector().head(6);  // x1, x2, x3, v1, v2, v3
             utility_measurement(seq(6, 8)) = ang_vel;
             utility_kf_.update(utility_measurement, utility_control);
+            // If something goes wrong (nan matrices):
+            static uint8_t utility_kf_fail_cnt = 0;
+            if (utility_kf_.state_vector().array().isNaN().sum()) {
+                // Reset to last valid
+                utility_kf_.setup(utility_kf_last_state_, utility_kf_last_cov_);
+                ++utility_kf_fail_cnt;
+            } else {
+                utility_kf_last_state_ = utility_kf_.state_vector();
+                utility_kf_last_cov_ = utility_kf_.error_cov();
+                utility_kf_fail_cnt = 0;
+            }
+            // If there were more than 10 fails in a row, reset utility_kf back to default values
+            if (utility_kf_fail_cnt > 5) {
+                init_utility_kf_(position_kf_.state_vector()(seq(0, 2)));
+                utility_kf_fail_cnt = 0;
+            }
         }
     }
     
@@ -380,11 +410,6 @@ void FlightController::update_target_attitude(uint32_t dt) {
     // Reassemble Rotation
     R = AngleAxisd(euler(0), Vector3d::UnitZ()) * AngleAxisd(euler(1), Vector3d::UnitX()) * AngleAxisd(euler(2), Vector3d::UnitY());
     target_attitude_ = Quaterniond(R);
-
-#if DEBUG
-    Debug::send_quaternion(target_attitude_, 't');
-    delay(10);
-#endif
 }
 
 void FlightController::attitude_controls(double& roll, double& pitch, double& yaw) {
@@ -406,8 +431,14 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
         ang_drift_params = utility_kf_.state_vector()(seq(12, 14));
     } else {  // Use hard coded default values if there is no estimator data available
         v_rel = kVRelDefault;
-        ctrl_surf_params = Vector3d(kCPitchDefault, kCRollDefault, kCYawDefault);
-        ang_drift_params = Vector3d(kW0PitchDefault, kW0RollDefault, kW0YawDefault);
+        double cPitchDefault = kCPitchDefault;  // Eigen doesn't work with constants apparently
+        double cRollDefault = kCRollDefault;
+        double cYawDefault = kCYawDefault;
+        double w0PitchDefault = kW0PitchDefault;
+        double w0RollDefault = kW0RollDefault;
+        double w0YawDefault = kW0YawDefault;
+        ctrl_surf_params = Vector3d(cPitchDefault, cRollDefault, cYawDefault);
+        ang_drift_params = Vector3d(w0PitchDefault, w0RollDefault, w0YawDefault);
     }
 
     // The following block doesn't have to be recomputed at every step (Just save K and the three ctrl_0s)
@@ -444,12 +475,7 @@ void FlightController::attitude_controls(double& roll, double& pitch, double& ya
     if (d_att.w() < 0.)
         d_att = Quaterniond(-d_att.w(), -d_att.x(), -d_att.y(), -d_att.z());
     Vector3d d_theta(2.*d_att.x(), 2.*d_att.y(), 2.*d_att.z());
-
-#if DEBUG
-    Debug::send_quaternion(d_att, 'd');
-    delay(10);
-#endif
-
+    
     Vector3d sqrt_ctrl = -last_K * d_theta;
     
     pitch = last_ctrl_0s(0) + sgn(sqrt_ctrl(0)) * sq(sqrt_ctrl(0));

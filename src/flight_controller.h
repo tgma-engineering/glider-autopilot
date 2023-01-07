@@ -11,12 +11,6 @@
 #include "kalman_filter.h"
 #include "sd_controller.h"
 
-#define DEBUG 0
-
-#if DEBUG
-#include "debug.h"
-#endif
-
 using namespace Eigen;
 
 class FlightController : public Controller {
@@ -28,7 +22,7 @@ public:
     static constexpr double kAccNoiseStdDev = 0.01163;  // Discrete Accelerometer standard deviation in m/s^2
     //static constexpr double kAccNoiseStdDev = 0.023;  // Noise seems to be a little higher in reality due to uncertainty in gravity vector
     static constexpr double kAccBiasNoiseStdDev = 0.01163;  // Guessing this could be in the same range as the Acc-Noise
-    static constexpr double kGyroNoiseStdDev = 0.0;  // Still left
+    static constexpr double kGyroNoiseStdDev = 0.00175;  // 1.75e-3;  // Gyro Output Noise: 0.1 deg/s = 1.75e-3 rad/s
     static constexpr double kGpsXStdDev = 2.5;  // Accuracy of 2.5m CEP stated in datasheet
     static constexpr double kGpsYStdDev = 2.5;
     static constexpr double kGpsZStdDev = 7.5;  // Kind of guessing from observation that vertical measurements could be about 3 times worse
@@ -43,11 +37,8 @@ public:
     static constexpr double kDragConstInit = 0.14;  // Experimental data
     //static constexpr double kMotorConstInit = 10;  // Imagining that the motor might accelerate with 10m/s^2 if there was no drag
     static constexpr double kMotorConstInit = 1.3;  // Experimental data
-    static const int32_t kMaxLsRows = 50;  // Maximum and Minimum number of rows in least squares matrix
-    static const int32_t kMinLsRows = 10;
-    static constexpr double kLsNewRowRatio = 0.2;  // Allowed percentage of recursively added rows before QR is recomputed from scratch
     static const String kLogName;
-    static const uint32_t kLogTime = 50000;  // In microseconds
+    static const uint32_t kLogTime = 500000;  // In microseconds
 
     // Flight angle limiters
     static constexpr double kMaxRoll = 30. * PI/180.;  // In Rad
@@ -101,6 +92,8 @@ private:
                                  // Control surface constant equation: v_rel * sqrt(r) * c + w_0 = w, where r is input, w_0 is angular drift and w is angular velocity
     bool is_kf_setup_;
     uint32_t kf_last_propagate_;
+    VectorXd utility_kf_last_state_;
+    MatrixXd utility_kf_last_cov_;
 
     SdController sd_;
     uint32_t last_log_elapsed_;  // Time in microseconds since the last Log written to SD card
@@ -113,6 +106,8 @@ private:
     MatrixXd position_kf_noise_cov() const;
     MatrixXd position_kf_meas_cov() const;
     MatrixXd utility_kf_noise_cov() const;
+
+    void init_utility_kf_(VectorXd pos);
 
     void update_target_attitude(uint32_t dt);
     void attitude_controls(double& roll, double& pitch, double& yaw);

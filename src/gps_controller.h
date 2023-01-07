@@ -18,7 +18,7 @@ public:
 
     // Time after which validity expires with no new measurements
     static const uint32_t kMaxValidTime = 2500;  // In ms
-    static const uint8_t kMinSatellites = 4;  // Should be 8 or so
+    static const uint8_t kMinSatellites = 8;  // Should be 8 or so
 
     GpsController();
     virtual int8_t setup();
